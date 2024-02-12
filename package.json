@@ -1,12 +1,12 @@
 {
-  "name": "electron_react_redux_app",
+  "name": "stm32_pomohlo_tool",
   "version": "0.1.11",
   "description": "Testing example for update and stlink access to stm32",
   "author": "Radek Ripa",
   "private": true,
   "repository": {
     "type": "git",
-    "url": "https://github.com/Araw86/electron_react_redux_app"
+    "url": "https://github.com/Araw86/stm32_pomohlo_tool"
   },
   "main": "./src/main/main.js",
   "license": "MIT",
@@ -79,13 +79,13 @@
       "publish": {
         "provider": "github",
         "owner": "Araw86",
-        "repo": "electron_react_redux_app"
+        "repo": "stm32_pomohlo_tool"
       }
     },
     "publish": {
       "provider": "github",
       "owner": "Araw86",
-      "repo": "electron_react_redux_app"
+      "repo": "stm32_pomohlo_tool"
     }
   }
 }

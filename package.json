@@ -1,0 +1,89 @@
+{
+  "name": "stm32_pomohlo_tool",
+  "version": "0.2.00",
+  "description": "Testing example for update and stlink access to stm32",
+  "author": "Radek Ripa",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Araw86/stm32_pomohlo_tool"
+  },
+  "main": "./src/main/main.js",
+  "license": "MIT",
+  "dependencies": {
+    "@emotion/react": "^11.10.5",
+    "@emotion/styled": "^11.10.5",
+    "@fontsource/roboto": "^4.5.8",
+    "@mui/icons-material": "^5.11.0",
+    "@mui/material": "^5.11.1",
+    "@reduxjs/toolkit": "^1.9.1",
+    "electron-dl": "^3.5.0",
+    "electron-is-dev": "^2.0.0",
+    "electron-reload": "^2.0.0-alpha.1",
+    "electron-store": "^8.1.0",
+    "electron-updater": "^5.3.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "pdf2json": "~2.0.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-redux": "^8.0.5",
+    "sqlite": "^4.1.2",
+    "sqlite3": "^5.1.4"
+  },
+  "devDependencies": {
+    "copy-webpack-plugin": "^11.0.0",
+    "css-loader": "^6.7.3",
+    "electron": "^22.0.0",
+    "electron-builder": "^23.6.0",
+    "electron-devtools-installer": "^3.2.0",
+    "html-webpack-plugin": "^5.5.0",
+    "style-loader": "^3.3.1",
+    "webpack": "^5.75.0",
+    "webpack-cli": "^5.0.1",
+    "ts-loader": "^9.5.1"
+  },
+  "scripts": {
+    "start": "electron .",
+    "watch": "webpack --config webpack.dev.js --watch",
+    "build_dev": "webpack --config webpack.dev.js",
+    "build_prod": "webpack --config webpack.prod.js",
+    "build_dist": "webpack --config webpack.prod.js && electron-builder -c.extraMetadata.main=build/main/main.js",
+    "build_dist_only": "electron-builder -c.extraMetadata.main=build/main/main.js",
+    "build_dist_github": "yarn build_dist_only --win --publish always"
+  },
+  "build": {
+    "extends": null,
+    "appId": "app.stm32_pomohlo_tool",
+    "productName": "stm32 pomohlo tool",
+    "files": [
+      "build/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "buildResources": "assets"
+    },
+    "extraFiles": [
+      {
+        "from": "./build/database/",
+        "to": "database",
+        "filter": [
+          "*"
+        ]
+      }
+    ],
+    "win": {
+      "publish": {
+        "provider": "github",
+        "owner": "Araw86",
+        "repo": "stm32_pomohlo_tool"
+      }
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "Araw86",
+      "repo": "stm32_pomohlo_tool"
+    }
+  },
+  "packageManager": "yarn@3.6.1+sha512.de524adec81a6c3d7a26d936d439d2832e351cdfc5728f9d91f3fc85dd20b04391c038e9b4ecab11cae2b0dd9f0d55fd355af766bc5c1a7f8d25d96bb2a0b2ca"
+}

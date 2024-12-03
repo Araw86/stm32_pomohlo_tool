@@ -1,4 +1,4 @@
-const { contextBridge, app, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer } = require('electron');
 
 console.log('preload run');
 
@@ -14,25 +14,25 @@ contextBridge.exposeInMainWorld('versions', {
 });
 
 contextBridge.exposeInMainWorld('ipc_handlers', {
-  ipcTwoWay: (data) => {
+  ipcTwoWay: (data:any) => {
     return ipcRenderer.invoke('config', data);
   },
-  ipcToMain: (text) => ipcRenderer.send('write-message', text),
+  ipcToMain: (text:String) => ipcRenderer.send('write-message', text),
   // we can also expose variables, not just functions
-  ipcToRenderer: (callback) => ipcRenderer.on('receive-msg', callback),
+  ipcToRenderer: (callback:any) => ipcRenderer.on('receive-msg', callback),
 
-  ipcToMainTest: (url) => ipcRenderer.send('download-button', url),
+  ipcToMainTest: (url:String) => ipcRenderer.send('download-button', url),
 
-  ipcToMainDownload: (oInfo) => ipcRenderer.send('download-doc-start', oInfo),
-  ipcToRendererDownload: (callback) => {
+  ipcToMainDownload: (oInfo:any) => ipcRenderer.send('download-doc-start', oInfo),
+  ipcToRendererDownload: (callback:any) => {
     /* remove all listeners to be sure only one is active */
     ipcRenderer.removeAllListeners('download-doc-response')
     ipcRenderer.on('download-doc-response', callback)
   },
-  ipcToStores: (data) => {
+  ipcToStores: (data:any) => {
     return ipcRenderer.invoke('stores', data)
   },
-  ipcToDocFiles: (data) => {
+  ipcToDocFiles: (data:any) => {
     return ipcRenderer.invoke('docFiles', data)
   }
 });

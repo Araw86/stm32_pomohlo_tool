@@ -1,4 +1,4 @@
-const { app, session, dialog, BrowserWindow, Menu, Notification } = require('electron');
+import { app, session, dialog, BrowserWindow, Menu, Notification, MessageBoxOptions } from 'electron'
 const path = require('path');
 
 /*debug*/
@@ -11,13 +11,13 @@ const {
 
 
 /*update */
-const { autoUpdater } = require("electron-updater")
+import { autoUpdater, UpdateInfo } from "electron-updater"
 
 /*ipc */
-const ipc = require('./ipcHandlers.js');
+import ipcHandlers from './ipcHandlers'
 
 const electronDl = require('electron-dl');
-const storeHandling = require('./utilities/storeHandling.js');
+// const storeHandling = require('./utilities/storeHandling.js');
 
 electronDl();
 
@@ -29,10 +29,9 @@ async function createWindow() {
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: true,
-      enableRemoteModule: true,
-      autoHideMenuBar: true,
       preload: path.join(__dirname, 'preload/preload.js'),
-    }
+    },
+    autoHideMenuBar: true
   });
 
 
@@ -81,56 +80,61 @@ async function createWindow() {
 
 }
 
-if (isDev) {
-  // electron reload
-  console.log('test ' + __dirname);
-  require('electron-reload')(path.join(__dirname, '..', '..'), {
-    electron: path.join(__dirname, '..', '..', 'node_modules', '.bin', 'electron')
-  });
+// if (isDev) {
+//   // electron reload
+//   console.log('test ' + __dirname);
+//   require('electron-reload')(path.join(__dirname, '..', '..'), {
+//     electron: path.join(__dirname, '..', '..', 'node_modules', '.bin', 'electron')
+//   });
 
-};
+// };
 
 app.on('ready', () => {
   createWindow();
-  ipc.ipcHandlers();
+  ipcHandlers();
 
 });
 
 
+function isText(data: unknown): data is string {
+  return typeof data === 'string';
+};
 
-
-autoUpdater.on("update-available", (_event, releaseNotes, releaseName) => {
-  console.log(_event);
+autoUpdater.on("update-available", (info: UpdateInfo) => {
+  const {releaseNotes,releaseName} = info;
   console.log(releaseNotes);
   console.log(releaseName);
-  const dialogOpts = {
-    type: 'info',
-    buttons: ['Ok'],
-    title: 'Application Update',
-    message: process.platform === 'win32' ? releaseNotes : releaseName,
-    detail: 'A new version is being downloaded.'
+  if(isText(releaseNotes) && isText(releaseName)){
+    const dialogOpts:MessageBoxOptions = {
+      type: 'info',
+      buttons: ['Ok'],
+      title: 'Application Update',
+      message: process.platform === 'win32' ? releaseNotes : releaseName,
+      detail: 'A new version is being downloaded.'
+    }
+    dialog.showMessageBox(dialogOpts);
   }
-  dialog.showMessageBox(dialogOpts, (response) => {
-
-  });
 })
 
-autoUpdater.on("update-downloaded", (_event, releaseNotes, releaseName) => {
-  const dialogOpts = {
-    type: 'info',
-    buttons: ['Restart', 'Later'],
-    title: 'Application Update',
-    message: process.platform === 'win32' ? releaseNotes : releaseName,
-    detail: 'A new version has been downloaded. Restart the application to apply the updates.'
-  };
-  dialog.showMessageBox(dialogOpts).then((returnValue) => {
-    if (returnValue.response === 0) autoUpdater.quitAndInstall()
-  })
+autoUpdater.on("update-downloaded", (info: UpdateInfo) => {
+  const {releaseNotes,releaseName} = info;
+  if(isText(releaseNotes) && isText(releaseName)){
+    const dialogOpts:MessageBoxOptions = {
+      type: 'info',
+      buttons: ['Restart', 'Later'],
+      title: 'Application Update',
+      message: process.platform === 'win32' ? releaseNotes : releaseName,
+      detail: 'A new version has been downloaded. Restart the application to apply the updates.'
+    };
+    dialog.showMessageBox(dialogOpts).then((returnValue) => {
+      if (returnValue.response === 0) autoUpdater.quitAndInstall()
+    })
+  }
 });
 
 
-autoUpdater.on("update-not-available", (_event, releaseNotes, releaseName) => {
-  console.log(_event);
+autoUpdater.on("update-not-available", (info: UpdateInfo) => {
+  const {releaseNotes,releaseName} = info;
   console.log(releaseNotes);
   console.log(releaseName);
   // const dialogOpts = {
@@ -144,26 +148,27 @@ autoUpdater.on("update-not-available", (_event, releaseNotes, releaseName) => {
 
   // });
 
-  const NOTIFICATION_TITLE = 'Application No Update'
-  const NOTIFICATION_BODY = 'No new version found'
+  const NOTIFICATION_TITLE :string= 'Application No Update'
+  const NOTIFICATION_BODY :string = 'No new version found'
   showNotification();
   function showNotification() {
-    new Notification({ title: NOTIFICATION_TITLE, body: NOTIFICATION_BODY }).show()
+    const notificationContent : {title:string, body:string} = {title: NOTIFICATION_TITLE, body: NOTIFICATION_BODY };
+    let notification :Notification = new Notification(notificationContent);
+    notification.show();
   }
 }
 );
 
-autoUpdater.on("error", (_event) => {
-  console.log(_event);
-  const dialogOpts = {
+autoUpdater.on("error", (error:Error) => {
+  console.log(error);
+  const dialogOpts:Electron.MessageBoxOptions = {
     type: 'info',
     buttons: ['Ok'],
     title: 'Error',
     message: '',
-    detail: 'No version found.' + _event
+    detail: 'No version found.' + error
   }
-  dialog.showMessageBox(dialogOpts, (response) => {
-  });
+  dialog.showMessageBox(dialogOpts);
 }
 );
 

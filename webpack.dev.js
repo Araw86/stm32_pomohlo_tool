@@ -24,7 +24,7 @@ module.exports = [
       rules: [
         {
           test: /\.ts(x?)$/,
-          include: /src/,
+          include: [path.resolve(__dirname, 'src/renderer')],
           use: [{ loader: 'ts-loader' }]
         },
         {
@@ -73,9 +73,12 @@ module.exports = [
     module: {
       rules: [{
         test: /\.ts$/,
-        include: /src/,
+        include: [path.resolve(__dirname, 'src/main')],
         use: [{ loader: 'ts-loader' }]
       }]
+    },
+    resolve: {
+      extensions: ['.ts', '.js', '.json', '.node', '...'],
     },
     output: {
       path: path.resolve(__dirname, 'build', 'main'),
@@ -91,9 +94,16 @@ module.exports = [
   /*handle main preload */
   {
     mode: 'development',
-    entry: './src/main/preload/preload.js',
+    entry: './src/main/preload/preload.ts',
     devtool: 'source-map',
     target: 'electron-preload',
+    module: {
+      rules: [{
+        test: /\.ts$/,
+        include: [path.resolve(__dirname, 'src/main/preload')],
+        use: [{ loader: 'ts-loader' }]
+      }]
+    },
     output: {
       path: path.join(__dirname, 'build', 'main', 'preload'),
       filename: 'preload.js',

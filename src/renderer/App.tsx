@@ -21,24 +21,22 @@ import '@fontsource/roboto/700.css';
 
 const darkTheme = createTheme({
   palette: {
+    primary: {
+      main: '#5893df',
+    },
+    secondary: {
+      main: '#2ec5d3',
+    },
+    background: {
+      default: '#192231',
+      paper: '#24344d',
+    },
     mode: 'dark',
-  },
-  primary: {
-    main: '#5893df',
-  },
-  secondary: {
-    main: '#2ec5d3',
-  },
-  background: {
-    default: '#192231',
-    paper: '#24344d',
-  },
+  }
 });
 
 
-export default function App() {
-
-
+export default function App() : JSX.Element {
   return (
     <ThemeProvider theme={darkTheme}>
       <CssBaseline />

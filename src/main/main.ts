@@ -90,6 +90,12 @@ async function createWindow() {
 // };
 
 app.on('ready', () => {
+
+  [REDUX_DEVTOOLS].map((extention)=>{
+    installExtension(extention)
+      .then((name:string)=> console.log(`Added extention ${name}`))
+      .catch((err:any)=>console.log("An errro occured in extention adding: ",err))
+  })
   createWindow();
   ipcHandlers();
 

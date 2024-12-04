@@ -5433,6 +5433,24 @@ __metadata:
   languageName: node
   linkType: hard
 
+"reduxtron@npm:^0.0.17":
+  version: 0.0.17
+  resolution: "reduxtron@npm:0.0.17"
+  peerDependencies:
+    electron: ">=24 || >=25 || >=26"
+    redux: ">=4 || ^5.0.0-beta.0"
+    zustand: ">=4.0.0"
+  peerDependenciesMeta:
+    electron:
+      optional: false
+    redux:
+      optional: false
+    zustand:
+      optional: true
+  checksum: 2fa25f62159e6c333c28b77a1b8e537b0511cb89e72af3b7e41d3a176fde15fe6d84271ee6b9a30f99b823f065b2ad1a9d448a0f949437e0d7306538fdb17f8b
+  languageName: node
+  linkType: hard
+
 "regenerator-runtime@npm:^0.13.11":
   version: 0.13.11
   resolution: "regenerator-runtime@npm:0.13.11"
@@ -6015,6 +6033,7 @@ __metadata:
     react: ^18.3.1
     react-dom: ^18.3.1
     react-redux: ^8.0.5
+    reduxtron: ^0.0.17
     sqlite: ^4.1.2
     sqlite3: ^5.1.4
     style-loader: ^3.3.1

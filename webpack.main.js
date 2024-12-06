@@ -1,4 +1,7 @@
-const CopyWebpackPlugin = require('copy-webpack-plugin');
+/**
+ * configuration for main part of webpack
+ */
+
 const path = require('path');
 
 const { IgnorePlugin } = require('webpack');
@@ -9,14 +12,29 @@ if (process.platform !== "darwin") {
   optionalPlugins.push(new IgnorePlugin({ resourceRegExp: /^fsevents$/ }));
 }
 
-module.exports = {
-  mode: 'development',
-  entry: './src/main/main.js',
+
+module.exports =
+{
+  entry: './src/main/main.ts',
   target: 'electron-main',
+  module: {
+    rules: [{
+      test: /\.ts$/,
+      include: [path.resolve(__dirname, 'src/main')],
+      use: [{ loader: 'ts-loader' }]
+    }]
+  },
+  resolve: {
+    extensions: ['.ts', '.js', '.json', '.node', '...'],
+  },
   output: {
     path: path.resolve(__dirname, 'build', 'main'),
+    //clean: true
   },
   plugins: [
     ...optionalPlugins,
-  ]
-};
+  ],
+  externals: {
+    sqlite3: 'commonjs sqlite3',
+  },
+}

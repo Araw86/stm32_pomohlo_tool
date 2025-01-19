@@ -19,6 +19,13 @@ import ipcHandlers from './ipcHandlers'
 const electronDl = require('electron-dl');
 // const storeHandling = require('./utilities/storeHandling.js');
 
+/*redux*/
+import { stateSyncEnhancer } from 'electron-redux/main'
+import { configureStore } from '@reduxjs/toolkit'
+import rootSlice from '../shared/redux/combinedReducer'
+
+
+
 electronDl();
 
 async function createWindow() {
@@ -191,4 +198,17 @@ app.on('activate', function () {
   // On OS X it's common to re-create a window in the app when the
   // dock icon is clicked and there are no other windows open.
   if (BrowserWindow.getAllWindows().length === 0) createWindow()
+});
+
+/*store creation */
+
+
+// const store = createStore(rootReducer, initialState, stateSyncEnhancer())
+
+const store = configureStore({
+  reducer: {
+    rootReducer:rootSlice
+  },
+  enhancers: (getDefaultEnhancers) =>
+    getDefaultEnhancers().concat([stateSyncEnhancer()]),
 });

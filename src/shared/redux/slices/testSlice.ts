@@ -12,7 +12,7 @@ const initialState: TestInterface = {
 }
 
 
-export const testSlice = createSlice({
+const testSlice = createSlice({
   name:'testReducer',
   initialState,
   reducers:{

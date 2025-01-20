@@ -2,8 +2,8 @@ import React from "react";
 
 
 
-// import { Provider } from 'react-redux';
-// import { store } from './redux/store';
+import { Provider } from 'react-redux';
+import { store } from './store/store';
 
 /* redux */
 
@@ -43,12 +43,12 @@ export default function App() : JSX.Element {
   return (
     <ThemeProvider theme={darkTheme}>
       <CssBaseline />
-      {/* <Provider store={store}> */}
+      <Provider store={store}>
         {/* <AppWindows /> */}
         <Box>
         test
         </Box>
-      {/* </Provider> */}
+      </Provider>
     </ThemeProvider>
   )
 }

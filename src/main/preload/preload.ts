@@ -1,5 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+import 'electron-redux/preload';
+
 console.log('preload run');
 
 contextBridge.exposeInMainWorld('myAPI', {

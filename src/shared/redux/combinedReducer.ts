@@ -1,4 +1,4 @@
-import { testSlice } from "./slices/testSlice";
+import testSlice  from "./slices/testSlice";
 
 
 export const reducers = {

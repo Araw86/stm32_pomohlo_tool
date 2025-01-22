@@ -1,6 +1,7 @@
 import { app, session, dialog, BrowserWindow, Menu, Notification, MessageBoxOptions } from 'electron'
 const path = require('path');
 
+
 /*debug*/
 const isDev = require('electron-is-dev')
 const {
@@ -19,18 +20,16 @@ import ipcHandlers from './ipcHandlers'
 const electronDl = require('electron-dl');
 // const storeHandling = require('./utilities/storeHandling.js');
 
-/*redux*/
-import { stateSyncEnhancer } from 'electron-redux/main'
-import { configureStore } from '@reduxjs/toolkit'
-import rootSlice from '../shared/redux/combinedReducer'
+/*import store */
 
-
+import {store} from './store/mainStore'
 
 electronDl();
+let win: BrowserWindow | null;
 
 async function createWindow() {
   // Create the browser window.
-  const win = new BrowserWindow({
+  win = new BrowserWindow({
     width: 800,
     height: 600,
     webPreferences: {
@@ -200,15 +199,17 @@ app.on('activate', function () {
   if (BrowserWindow.getAllWindows().length === 0) createWindow()
 });
 
-/*store creation */
+/*store test */
 
 
-// const store = createStore(rootReducer, initialState, stateSyncEnhancer())
+const render = () => {
+  if (win) {
+      const { testSlice } = store.getState()
+      console.log('store change: ');
+      console.log(testSlice);
+  }
+}
 
-const store = configureStore({
-  reducer: {
-    rootReducer:rootSlice
-  },
-  enhancers: (getDefaultEnhancers) =>
-    getDefaultEnhancers().concat([stateSyncEnhancer()]),
-});
+store.subscribe(render);
+console.log('store subscrabe')
+

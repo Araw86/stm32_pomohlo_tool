@@ -20,7 +20,7 @@ module.exports =
   module: {
     rules: [{
       test: /\.ts$/,
-      include: [path.resolve(__dirname, 'src/main')],
+      include: [path.resolve(__dirname, 'src/main'), path.resolve(__dirname, 'src/shared')],
       use: [{ loader: 'ts-loader' }]
     }]
   },

@@ -13,7 +13,7 @@ module.exports =
     rules: [
       {
         test: /\.ts(x?)$/,
-        include: [path.resolve(__dirname, 'src/renderer')],
+        include: [path.resolve(__dirname, 'src/renderer'), path.resolve(__dirname, 'src/shared')],
         use: [{ loader: 'ts-loader' }]
       },
       {

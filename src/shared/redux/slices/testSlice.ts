@@ -1,4 +1,4 @@
-import { createSlice } from '@reduxjs/toolkit'
+import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 
 
 export interface TestInterface {
@@ -16,8 +16,13 @@ const testSlice = createSlice({
   name:'testReducer',
   initialState,
   reducers:{
-
+    increment(slice,action: PayloadAction<null>){
+      slice.testState1=slice.testState1+1;
+    }
   }
 });
 
+/*export dispatch functions */
+export const { increment } = testSlice.actions;
+/* export reducer */
 export default testSlice.reducer;

@@ -15,6 +15,7 @@ import '@fontsource/roboto/400.css';
 import '@fontsource/roboto/500.css';
 import '@fontsource/roboto/700.css';
 import { Box } from '@mui/material';
+import TestComponent from './components/TestComponent';
 
 // import AppWindows from "./components/AppWindows";
 
@@ -41,6 +42,7 @@ export default function App(): JSX.Element {
       <Provider store={store}>
         {/* <AppWindows /> */}
         <Box>test</Box>
+        <TestComponent />
       </Provider>
     </ThemeProvider>
   );

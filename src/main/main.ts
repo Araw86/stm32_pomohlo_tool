@@ -200,16 +200,15 @@ app.on('activate', function () {
 });
 
 /*store test */
-
-
 const render = () => {
-  if (win) {
-      const { testSlice } = store.getState()
-      console.log('store change: ');
-      console.log(testSlice);
-  }
+  // if (win) {
+  //     const { testSlice } = store.getState()
+  //     console.log('store change: ');
+  //     console.log(testSlice);
+  // }
 }
 
 store.subscribe(render);
+
 console.log('store subscrabe')
 

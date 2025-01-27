@@ -13,9 +13,9 @@ import { increment } from '../../shared/redux/slices/testSlice';
 //TypedUseSelectorHook<RootState>
 function TestComponent() {
   const testStateValue: number = useSelector((state: RootState) => {
-    console.log(state);
     return state.testSlice.testState1;
   });
+  console.log(testStateValue);
   const versionNode = window.versions?.chrome(); //
   return (
     <Box>

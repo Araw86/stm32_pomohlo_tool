@@ -4,11 +4,7 @@ const path = require('path');
 
 /*debug*/
 const isDev = require('electron-is-dev')
-const {
-  default: installExtension,
-  REDUX_DEVTOOLS,
-  REACT_DEVELOPER_TOOLS
-} = require("electron-devtools-installer");
+import {  installExtension,  REDUX_DEVTOOLS, REACT_DEVELOPER_TOOLS} from "electron-devtools-installer"
 
 
 /*update */
@@ -67,6 +63,7 @@ async function createWindow() {
   if (isDev) {
 
     await win.loadFile('./build/renderer/index.html')
+    console.log("Open dev tools")
     win.webContents.openDevTools({ mode: "detach" });
     // win.webContents.once("dom-ready", async () => {
     //   await installExtension([REDUX_DEVTOOLS])
@@ -95,13 +92,28 @@ async function createWindow() {
 
 // };
 
-app.on('ready', () => {
+app.on('ready',async () => {
 
-  [REDUX_DEVTOOLS].map((extention)=>{
-    installExtension(extention)
-      .then((name:string)=> console.log(`Added extention ${name}`))
-      .catch((err:any)=>console.log("An errro occured in extention adding: ",err))
-  })
+  if (isDev) {
+    try { 
+  // [REDUX_DEVTOOLS,REACT_DEVELOPER_TOOLS].map((extention)=>{
+  //   installExtension(extention)
+  //     .then((ext:Electron.Extension)=> console.log(`Added extention ${ext.name}`))
+  //     .catch((err:any)=>console.log("An errro occured in extention adding: ",err))
+  // })
+      const extensions = await installExtension([REDUX_DEVTOOLS, REACT_DEVELOPER_TOOLS], {
+        loadExtensionOptions: {allowFileAccess: true},
+      })
+      console.log(`Added Extensions:  ${extensions.map(ext => ext.name).join(", ")}`)
+      await require("node:timers/promises").setTimeout(1000);
+      session.defaultSession.getAllExtensions().map((ext) => {
+        console.log(`Loading Extension: ${ext.name}`);
+        session.defaultSession.loadExtension(ext.path)
+      });
+    } catch (err) {
+      console.error('An error occurred while loading extensions: ', err);
+    }
+  }
   createWindow();
   ipcHandlers();
 

@@ -2655,15 +2655,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"electron-devtools-installer@npm:^3.2.0":
-  version: 3.2.0
-  resolution: "electron-devtools-installer@npm:3.2.0"
+"electron-devtools-installer@npm:^4.0.0":
+  version: 4.0.0
+  resolution: "electron-devtools-installer@npm:4.0.0"
   dependencies:
-    rimraf: ^3.0.2
-    semver: ^7.2.1
-    tslib: ^2.1.0
     unzip-crx-3: ^0.2.0
-  checksum: e87d4c9283f84ac610e9ee37d72677f18feed05174e9d5bf0415a56c3daac717e3f34a5a763499aff7fc2e565660d2ad66beb95d960e8176ed148acf1c3a416b
+  checksum: 64713c8253ecc5aa13d33aba79a06f9a3412d132b4af3ee047b3d9cfc389d8f0afb7c5bc5c3ad4efd1be8e4e506d19abae8a8310376c35e39bd96487af2ca48f
   languageName: node
   linkType: hard
 
@@ -2755,16 +2752,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"electron@npm:^33.2.1":
-  version: 33.2.1
-  resolution: "electron@npm:33.2.1"
+"electron@npm:^34.0.1":
+  version: 34.0.1
+  resolution: "electron@npm:34.0.1"
   dependencies:
     "@electron/get": ^2.0.0
     "@types/node": ^20.9.0
     extract-zip: ^2.0.1
   bin:
     electron: cli.js
-  checksum: c5b7d5fe56f831da5d14be9d24d0a29fdb392d5b4e593b31200a9c01e6260d87bba1216c4cc17297b2f4838e0893428464b9e2ca71c3eaff499dbff1981c0670
+  checksum: 8bf0d9757e58379f2b60afed86a70b19a2326559d9c582a96d0970a13c68946c6db74759fd9036ab8971fa8009481a0f6d74c3dbbd413dd0bf31f1f280fa27e9
   languageName: node
   linkType: hard
 
@@ -5732,7 +5729,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"semver@npm:^7.2.1, semver@npm:^7.3.2, semver@npm:^7.3.5, semver@npm:^7.3.8":
+"semver@npm:^7.3.2, semver@npm:^7.3.5, semver@npm:^7.3.8":
   version: 7.3.8
   resolution: "semver@npm:7.3.8"
   dependencies:
@@ -6028,9 +6025,9 @@ __metadata:
     "@types/react-dom": ^18.3.1
     copy-webpack-plugin: ^11.0.0
     css-loader: ^6.7.3
-    electron: ^33.2.1
+    electron: ^34.0.1
     electron-builder: ^25.1.8
-    electron-devtools-installer: ^3.2.0
+    electron-devtools-installer: ^4.0.0
     electron-dl: ^3.5.0
     electron-is-dev: ^3.0.1
     electron-redux: ^2.0.0
@@ -6338,7 +6335,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tslib@npm:^2.0.3, tslib@npm:^2.1.0":
+"tslib@npm:^2.0.3":
   version: 2.4.1
   resolution: "tslib@npm:2.4.1"
   checksum: 19480d6e0313292bd6505d4efe096a6b31c70e21cf08b5febf4da62e95c265c8f571f7b36fcc3d1a17e068032f59c269fab3459d6cd3ed6949eafecf64315fca

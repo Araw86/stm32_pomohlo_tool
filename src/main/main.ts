@@ -33,7 +33,8 @@ async function createWindow() {
       contextIsolation: true,
       preload: path.join(__dirname, 'preload/preload.js'),
     },
-    autoHideMenuBar: true
+    autoHideMenuBar: true // not show menu in window
+    // autoHideMenuBar: false // show menu in window
   });
 
 
@@ -59,14 +60,21 @@ async function createWindow() {
 
   // Menu.setApplicationMenu(menu)
 
+
+  if (!isDev) {
+    win.loadFile(path.join(__dirname, '../renderer/index.html'))
+    autoUpdater.checkForUpdates();
+  }
+
   // Open the DevTools.
   if (isDev) {
 
     await win.loadFile('./build/renderer/index.html')
-    console.log("Open dev tools")
+    // console.log("Open dev tools")
     win.webContents.openDevTools({ mode: "detach" });
     // win.webContents.once("dom-ready", async () => {
-    //   await installExtension([REDUX_DEVTOOLS])
+    //   console.log('Call installExtension')
+    //   await installExtension([REDUX_DEVTOOLS, REACT_DEVELOPER_TOOLS], { loadExtensionOptions: {allowFileAccess: true}})
     //     .then((name) => console.log(`Added Extension:  ${name}`))
     //     .catch((err) => console.log("An error occurred: ", err))
     //     .finally(() => {
@@ -76,10 +84,6 @@ async function createWindow() {
     // });
 
   };
-  if (!isDev) {
-    win.loadFile(path.join(__dirname, '../renderer/index.html'))
-    autoUpdater.checkForUpdates();
-  }
 
 }
 
@@ -93,17 +97,24 @@ async function createWindow() {
 // };
 
 app.on('ready',async () => {
-
+  createWindow();
+  ipcHandlers();
   if (isDev) {
     try { 
-  // [REDUX_DEVTOOLS,REACT_DEVELOPER_TOOLS].map((extention)=>{
-  //   installExtension(extention)
-  //     .then((ext:Electron.Extension)=> console.log(`Added extention ${ext.name}`))
-  //     .catch((err:any)=>console.log("An errro occured in extention adding: ",err))
-  // })
-      const extensions = await installExtension([REDUX_DEVTOOLS, REACT_DEVELOPER_TOOLS], {
+      // [REDUX_DEVTOOLS,REACT_DEVELOPER_TOOLS].map((extention)=>{
+      //   installExtension(extention)
+      //     .then((ext:Electron.Extension)=> console.log(`Added extention ${ext.name}`))
+      //     .catch((err:any)=>console.log("An errro occured in extention adding: ",err))
+      // })
+      
+      // win.webContents.openDevTools({ mode: "detach" });
+      const extensions = await installExtension([REACT_DEVELOPER_TOOLS], {
+      // const extensions = await installExtension([REDUX_DEVTOOLS, REACT_DEVELOPER_TOOLS], {
+      // const extensions = await installExtension([{id:'lmhkpmbekcpmknklioeibfkpmmfibljd'}], {
+        // forceDownload: true,
         loadExtensionOptions: {allowFileAccess: true},
       })
+        
       console.log(`Added Extensions:  ${extensions.map(ext => ext.name).join(", ")}`)
       await require("node:timers/promises").setTimeout(1000);
       session.defaultSession.getAllExtensions().map((ext) => {
@@ -114,8 +125,7 @@ app.on('ready',async () => {
       console.error('An error occurred while loading extensions: ', err);
     }
   }
-  createWindow();
-  ipcHandlers();
+
 
 });
 

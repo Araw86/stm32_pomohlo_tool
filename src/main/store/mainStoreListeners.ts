@@ -1,7 +1,7 @@
 /*redux import*/
 import { createListenerMiddleware } from '@reduxjs/toolkit';
 
-/* create listener to listen for changes in store */
+/* create listener to listen for changes in store in main*/
 export function createMainListeners() {
   const listener = createListenerMiddleware();
 

@@ -8,24 +8,17 @@ import {reducers} from '../../shared/redux/combinedReducer'
 /*listener*/
 import { createMainListeners } from './mainStoreListeners';
 
-
-
-// export const store = configureStore({
-//   reducer:reducers, 
-//   enhancers: [stateSyncEnhancer()],
-//   middleware: (getDefaultMiddleware) =>
-//     getDefaultMiddleware().prepend(createMainListeners().middleware),
-// });
-
-
+//middleware composeWithStateSync to share redux store in renderer and main
 const middleware = applyMiddleware(createMainListeners().middleware)
 
 const enhancer: StoreEnhancer = composeWithStateSync(middleware)
 
 export const store = configureStore({
   reducer:reducers, 
-  enhancers: [enhancer],
+  enhancers: (getDefaultEnhancers) =>
+    getDefaultEnhancers({
+      autoBatch: false,
+    }).concat(enhancer),
 });
-
 export type AppDispatch = typeof store.dispatch;
 export type RootState = ReturnType<typeof store.getState>;

@@ -27,25 +27,5 @@ contextBridge.exposeInMainWorld('versions', {
 });
 
 contextBridge.exposeInMainWorld('ipc_handlers', {
-  ipcTwoWay: (data:any) => {
-    return ipcRenderer.invoke('config', data);
-  },
-  ipcToMain: (text:String) => ipcRenderer.send('write-message', text),
-  // we can also expose variables, not just functions
-  ipcToRenderer: (callback:any) => ipcRenderer.on('receive-msg', callback),
-
-  ipcToMainTest: (url:String) => ipcRenderer.send('download-button', url),
-
-  ipcToMainDownload: (oInfo:any) => ipcRenderer.send('download-doc-start', oInfo),
-  ipcToRendererDownload: (callback:any) => {
-    /* remove all listeners to be sure only one is active */
-    ipcRenderer.removeAllListeners('download-doc-response')
-    ipcRenderer.on('download-doc-response', callback)
-  },
-  ipcToStores: (data:any) => {
-    return ipcRenderer.invoke('stores', data)
-  },
-  ipcToDocFiles: (data:any) => {
-    return ipcRenderer.invoke('docFiles', data)
-  }
+  loadDatabase: () => ipcRenderer.invoke('database:load'),
 });

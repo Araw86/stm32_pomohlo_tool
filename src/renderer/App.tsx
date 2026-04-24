@@ -14,10 +14,7 @@ import '@fontsource/roboto/300.css';
 import '@fontsource/roboto/400.css';
 import '@fontsource/roboto/500.css';
 import '@fontsource/roboto/700.css';
-import { Box } from '@mui/material';
-import TestComponent from './components/TestComponent';
-
-// import AppWindows from "./components/AppWindows";
+import DocPanel from './components/DocPanel/DocPanel';
 
 const darkTheme = createTheme({
   palette: {
@@ -40,9 +37,7 @@ export default function App(): JSX.Element {
     <ThemeProvider theme={darkTheme}>
       <CssBaseline />
       <Provider store={store}>
-        {/* <AppWindows /> */}
-        <Box>test</Box>
-        <TestComponent />
+        <DocPanel />
       </Provider>
     </ThemeProvider>
   );

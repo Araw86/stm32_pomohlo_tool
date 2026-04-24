@@ -1,6 +1,8 @@
-import testSlice  from "./slices/testSlice";
+import testSlice from './slices/testSlice';
+import databaseSlice from './slices/databaseSlice';
 
 
 export const reducers = {
-  testSlice: testSlice
+  testSlice: testSlice,
+  databaseSlice: databaseSlice,
 };

@@ -1,18 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import {
-  AppBar,
-  Box,
-  CircularProgress,
-  Grid,
-  Toolbar,
-  Typography,
-} from '@mui/material';
+import { Box, CircularProgress, Grid, Typography } from '@mui/material';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../store/storeRenderer';
 import type { DocumentEntry, Subfamily } from '../../../shared/types/database';
 import DocPanelSubfamily from './DocPanelSubfamily';
 import DocPanelSearch from './DocPanelSearch';
-import DocPanelRepoButton from './DocPanelRepoButton';
 import { useDatabaseLoader } from './useDatabaseLoader';
 
 interface VisibleRow {
@@ -92,35 +84,27 @@ function DocPanel(): JSX.Element {
   }
 
   return (
-    <Box>
-      <AppBar position="fixed">
-        <Toolbar sx={{ gap: 1 }}>
-          <Box display="flex" flexGrow={1}>
-            <DocPanelSearch value={filter} onChange={setFilter} />
-          </Box>
-          <DocPanelRepoButton />
-        </Toolbar>
-      </AppBar>
-      <Toolbar />
-      <Box m={1}>
-        {visibleRows.length === 0 ? (
-          <Box m={2}>
-            <Typography color="text.secondary">
-              No subfamilies match &ldquo;{filter}&rdquo;.
-            </Typography>
-          </Box>
-        ) : (
-          <Grid container justifyContent="center" spacing={2}>
-            {visibleRows.map(({ subfamily, datasheets }) => (
-              <DocPanelSubfamily
-                key={subfamily.id}
-                subfamily={subfamily}
-                datasheets={datasheets}
-              />
-            ))}
-          </Grid>
-        )}
+    <Box m={1}>
+      <Box mb={2}>
+        <DocPanelSearch value={filter} onChange={setFilter} />
       </Box>
+      {visibleRows.length === 0 ? (
+        <Box m={2}>
+          <Typography color="text.secondary">
+            No subfamilies match &ldquo;{filter}&rdquo;.
+          </Typography>
+        </Box>
+      ) : (
+        <Grid container justifyContent="center" spacing={2}>
+          {visibleRows.map(({ subfamily, datasheets }) => (
+            <DocPanelSubfamily
+              key={subfamily.id}
+              subfamily={subfamily}
+              datasheets={datasheets}
+            />
+          ))}
+        </Grid>
+      )}
     </Box>
   );
 }

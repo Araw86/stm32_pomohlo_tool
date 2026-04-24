@@ -28,4 +28,7 @@ contextBridge.exposeInMainWorld('versions', {
 
 contextBridge.exposeInMainWorld('ipc_handlers', {
   loadDatabase: () => ipcRenderer.invoke('database:load'),
+  pickRepoPath: () => ipcRenderer.invoke('config:pickRepoPath'),
+  openOrDownload: (docId: string, url: string) =>
+    ipcRenderer.invoke('doc:openOrDownload', { docId, url }),
 });

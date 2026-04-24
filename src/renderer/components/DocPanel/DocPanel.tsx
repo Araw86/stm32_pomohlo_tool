@@ -1,10 +1,24 @@
-import React, { useMemo } from 'react';
-import { Box, CircularProgress, Grid, Toolbar, Typography } from '@mui/material';
+import React, { useMemo, useState } from 'react';
+import {
+  AppBar,
+  Box,
+  CircularProgress,
+  Grid,
+  Toolbar,
+  Typography,
+} from '@mui/material';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../store/storeRenderer';
-import type { DocumentEntry } from '../../../shared/types/database';
+import type { DocumentEntry, Subfamily } from '../../../shared/types/database';
 import DocPanelSubfamily from './DocPanelSubfamily';
+import DocPanelSearch from './DocPanelSearch';
+import DocPanelRepoButton from './DocPanelRepoButton';
 import { useDatabaseLoader } from './useDatabaseLoader';
+
+interface VisibleRow {
+  subfamily: Subfamily;
+  datasheets: DocumentEntry[];
+}
 
 function DocPanel(): JSX.Element {
   useDatabaseLoader();
@@ -13,6 +27,8 @@ function DocPanel(): JSX.Element {
   const error = useSelector((s: RootState) => s.databaseSlice.error);
   const subfamilies = useSelector((s: RootState) => s.databaseSlice.subfamilies);
   const documents = useSelector((s: RootState) => s.databaseSlice.documents);
+
+  const [filter, setFilter] = useState('');
 
   const datasheetsBySubfamily = useMemo(() => {
     const map = new Map<string, DocumentEntry[]>();
@@ -26,6 +42,37 @@ function DocPanel(): JSX.Element {
     }
     return map;
   }, [documents]);
+
+  const visibleRows = useMemo<VisibleRow[]>(() => {
+    const query = filter.trim().toUpperCase();
+
+    if (query === '') {
+      return subfamilies.map((sf) => ({
+        subfamily: sf,
+        datasheets: datasheetsBySubfamily.get(sf.id) ?? [],
+      }));
+    }
+
+    const rows: VisibleRow[] = [];
+    for (const sf of subfamilies) {
+      const nameMatches = sf.name.toUpperCase().includes(query);
+      const deviceMatches = sf.deviceIds.some((id) => id.toUpperCase().includes(query));
+
+      const allDatasheets = datasheetsBySubfamily.get(sf.id) ?? [];
+      const matchingDatasheets = allDatasheets.filter(
+        (doc) =>
+          doc.id.toUpperCase().includes(query) ||
+          doc.title.toUpperCase().includes(query),
+      );
+
+      if (nameMatches || deviceMatches) {
+        rows.push({ subfamily: sf, datasheets: allDatasheets });
+      } else if (matchingDatasheets.length > 0) {
+        rows.push({ subfamily: sf, datasheets: matchingDatasheets });
+      }
+    }
+    return rows;
+  }, [subfamilies, datasheetsBySubfamily, filter]);
 
   if (error) {
     return (
@@ -46,17 +93,33 @@ function DocPanel(): JSX.Element {
 
   return (
     <Box>
+      <AppBar position="fixed">
+        <Toolbar sx={{ gap: 1 }}>
+          <Box display="flex" flexGrow={1}>
+            <DocPanelSearch value={filter} onChange={setFilter} />
+          </Box>
+          <DocPanelRepoButton />
+        </Toolbar>
+      </AppBar>
       <Toolbar />
       <Box m={1}>
-        <Grid container justifyContent="center" spacing={2}>
-          {subfamilies.map((sf) => (
-            <DocPanelSubfamily
-              key={sf.id}
-              subfamily={sf}
-              datasheets={datasheetsBySubfamily.get(sf.id) ?? []}
-            />
-          ))}
-        </Grid>
+        {visibleRows.length === 0 ? (
+          <Box m={2}>
+            <Typography color="text.secondary">
+              No subfamilies match &ldquo;{filter}&rdquo;.
+            </Typography>
+          </Box>
+        ) : (
+          <Grid container justifyContent="center" spacing={2}>
+            {visibleRows.map(({ subfamily, datasheets }) => (
+              <DocPanelSubfamily
+                key={subfamily.id}
+                subfamily={subfamily}
+                datasheets={datasheets}
+              />
+            ))}
+          </Grid>
+        )}
       </Box>
     </Box>
   );

@@ -20,7 +20,19 @@ export interface Subfamily {
 export interface Device {
   id: string;
   subfamilyId: string;
+  /** Canonical device product page on st.com. */
   url?: string;
+  /** Convention-based per-device datasheet PDF URL. */
+  datasheetUrl?: string;
+  /** ST document id of the datasheet that applies to this device, e.g.
+   * "DS13866". A single DS#### can be shared by multiple devices. */
+  datasheetId?: string;
+  /** Doc IDs scraped from this device's own documentation tab.
+   * Populated only when the device's subfamily is ambiguous and
+   * deep-mode was used; otherwise inherit from the subfamily. */
+  documentIds?: string[];
+  /** ISO timestamp of the last deep-mode scrape for this device. */
+  scrapedAt?: string;
 }
 
 export interface DocumentVersion {

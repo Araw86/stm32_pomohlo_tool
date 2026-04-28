@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { Box, Tab, Tabs } from '@mui/material';
 import DescriptionIcon from '@mui/icons-material/Description';
 import SettingsIcon from '@mui/icons-material/Settings';
+import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 
 import DocPanel from './DocPanel/DocPanel';
 import SettingsPanel from './SettingsPanel/SettingsPanel';
+import DownloadPanel from './DownloadPanel/DownloadPanel';
 
-type TabKey = 'documents' | 'settings';
+type TabKey = 'documents' | 'download' | 'settings';
 
 const SIDEBAR_WIDTH = 88;
 
@@ -43,11 +45,14 @@ function AppWindows(): JSX.Element {
           }}
         >
           <Tab value="documents" icon={<DescriptionIcon />} label="Documents" />
+          <Tab value="download" icon={<CloudDownloadIcon />} label="Download" />
           <Tab value="settings" icon={<SettingsIcon />} label="Settings" />
         </Tabs>
       </Box>
       <Box sx={{ ml: `${SIDEBAR_WIDTH}px`, flexGrow: 1, minWidth: 0 }}>
-        {tab === 'documents' ? <DocPanel /> : <SettingsPanel />}
+        {tab === 'documents' && <DocPanel />}
+        {tab === 'download' && <DownloadPanel />}
+        {tab === 'settings' && <SettingsPanel />}
       </Box>
     </Box>
   );

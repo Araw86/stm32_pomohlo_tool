@@ -4,6 +4,7 @@ import { BrowserWindow, dialog, shell } from 'electron';
 import { download } from 'electron-dl';
 
 import { loadConfig, saveConfig } from './configStore';
+import { writeSidecarLite } from './sidecar';
 import { store } from '../store/mainStore';
 import { setRepoPath } from '../../shared/redux/slices/configSlice';
 
@@ -40,7 +41,11 @@ async function ensureRepoPath(): Promise<string | null> {
   return pickRepoPath();
 }
 
-export async function openOrDownload(docId: string, url: string): Promise<OpenResult> {
+export async function openOrDownload(
+  docId: string,
+  url: string,
+  meta?: { version?: string; lastUpdate?: string },
+): Promise<OpenResult> {
   try {
     const repoPath = await ensureRepoPath();
     if (repoPath === null) return { status: 'cancelled' };
@@ -61,6 +66,8 @@ export async function openOrDownload(docId: string, url: string): Promise<OpenRe
       filename: `${docId}.pdf`,
       overwrite: true,
     });
+
+    writeSidecarLite(repoPath, docId, meta);
 
     const openErr = await shell.openPath(filePath);
     if (openErr) return { status: 'error', message: openErr };

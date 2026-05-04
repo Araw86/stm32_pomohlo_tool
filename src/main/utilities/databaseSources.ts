@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import AdmZip from 'adm-zip';
 import { liveDir } from './loadDatabase';
 
 export interface GithubSource {
@@ -79,6 +80,9 @@ interface GithubRelease {
   published_at: string;
   html_url: string;
   assets: GithubAsset[];
+  /** GitHub-generated source-code archive URLs. */
+  zipball_url?: string;
+  tarball_url?: string;
 }
 
 const GITHUB_HEADERS: Record<string, string> = {
@@ -106,6 +110,93 @@ async function fetchText(url: string): Promise<string> {
   return res.text();
 }
 
+async function fetchBuffer(url: string): Promise<Buffer> {
+  const res = await fetch(url, {
+    headers: { 'User-Agent': GITHUB_HEADERS['User-Agent'] },
+    redirect: 'follow',
+  });
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} ${res.statusText} fetching ${url}`);
+  }
+  const ab = await res.arrayBuffer();
+  return Buffer.from(ab);
+}
+
+/** Read every required + optional DB JSON from a zip buffer by basename match.
+ * Works for both user-uploaded zips and GitHub's auto-generated source
+ * archive (which has a top-level `<owner>-<repo>-<sha>/...` folder). */
+function extractJsonsFromZip(
+  buffer: Buffer,
+  wanted: readonly string[],
+): Map<string, string> {
+  const zip = new AdmZip(buffer);
+  const out = new Map<string, string>();
+  const wantedSet = new Set(wanted);
+  for (const entry of zip.getEntries()) {
+    if (entry.isDirectory) continue;
+    const base = path.basename(entry.entryName);
+    if (!wantedSet.has(base)) continue;
+    if (out.has(base)) continue; // first occurrence wins
+    out.set(base, entry.getData().toString('utf8'));
+  }
+  return out;
+}
+
+interface ResolvedFiles {
+  /** Filename → raw JSON text. */
+  files: Map<string, string>;
+  /** Where the data came from, for error messages and progress reporting. */
+  sourceLabel: string;
+}
+
+async function resolveReleaseJsons(
+  release: GithubRelease,
+  wanted: readonly string[],
+  required: readonly string[],
+  onProgress?: (p: DownloadProgress) => void,
+): Promise<ResolvedFiles> {
+  // 1) Direct asset for every required file? Use individual downloads.
+  const directAssets = required.map((f) => findAsset(release, f));
+  if (directAssets.every((a) => a !== undefined)) {
+    const files = new Map<string, string>();
+    for (let i = 0; i < wanted.length; i++) {
+      const file = wanted[i];
+      const asset = findAsset(release, file);
+      if (!asset) continue;
+      onProgress?.({ file, current: i, total: wanted.length });
+      files.set(file, await fetchText(asset.browser_download_url));
+    }
+    return { files, sourceLabel: 'release assets' };
+  }
+
+  // 2) A zip asset attached to the release.
+  const zipAsset = release.assets.find((a) => /\.zip$/i.test(a.name));
+  if (zipAsset) {
+    onProgress?.({ file: zipAsset.name, current: 0, total: 1 });
+    const buf = await fetchBuffer(zipAsset.browser_download_url);
+    onProgress?.({ file: zipAsset.name, current: 1, total: 1 });
+    return {
+      files: extractJsonsFromZip(buf, wanted),
+      sourceLabel: `zip asset ${zipAsset.name}`,
+    };
+  }
+
+  // 3) GitHub's auto-generated source-code zipball.
+  if (release.zipball_url) {
+    onProgress?.({ file: 'source.zip', current: 0, total: 1 });
+    const buf = await fetchBuffer(release.zipball_url);
+    onProgress?.({ file: 'source.zip', current: 1, total: 1 });
+    return {
+      files: extractJsonsFromZip(buf, wanted),
+      sourceLabel: 'source zipball',
+    };
+  }
+
+  throw new Error(
+    `Release ${release.tag_name} has no usable assets (no JSONs, no .zip, no zipball).`,
+  );
+}
+
 async function fetchLatestRelease(source: GithubSource): Promise<GithubRelease> {
   const url = `https://api.github.com/repos/${source.owner}/${source.repo}/releases/latest`;
   try {
@@ -127,14 +218,18 @@ function findAsset(release: GithubRelease, name: string): GithubAsset | undefine
 
 export async function checkLatest(source: DatabaseSource): Promise<RemoteVersion> {
   const release = await fetchLatestRelease(source);
-  const dbAsset = findAsset(release, 'database.json');
-  if (!dbAsset) {
+  const { files } = await resolveReleaseJsons(
+    release,
+    ['database.json'],
+    ['database.json'],
+  );
+  const dbText = files.get('database.json');
+  if (!dbText) {
     throw new Error(
-      `Release ${release.tag_name} is missing the database.json asset.`,
+      `Release ${release.tag_name} doesn't contain database.json (looked at assets and source archive).`,
     );
   }
-  const text = await fetchText(dbAsset.browser_download_url);
-  const parsed = JSON.parse(text) as {
+  const parsed = JSON.parse(dbText) as {
     databaseVersion: number;
     databaseVersionCreatedAt: string;
     scrapedAt: string;
@@ -166,33 +261,32 @@ export async function downloadSource(
 ): Promise<RemoteVersion> {
   const release = await fetchLatestRelease(source);
 
-  // Resolve which files we'll fetch. Required ones must be present as assets.
-  const filesToFetch: { file: string; url: string }[] = [];
-  for (const file of DB_FILES) {
-    const asset = findAsset(release, file);
-    if (!asset) {
-      if (REQUIRED_FILES.includes(file)) {
-        throw new Error(
-          `Release ${release.tag_name} is missing required asset ${file}.`,
-        );
-      }
-      continue;
-    }
-    filesToFetch.push({ file, url: asset.browser_download_url });
-  }
+  // Pull every JSON we know about (DB_FILES) but require only the core ones.
+  const { files, sourceLabel } = await resolveReleaseJsons(
+    release,
+    DB_FILES,
+    REQUIRED_FILES,
+    onProgress,
+  );
 
-  // Stage 1 — fetch every file into memory and validate JSON before touching disk.
+  // Validate JSON for everything we got; bail if a required file is missing.
   const buffered: { file: string; body: string }[] = [];
-  for (let i = 0; i < filesToFetch.length; i++) {
-    const { file, url } = filesToFetch[i];
-    onProgress?.({ file, current: i, total: filesToFetch.length });
-    const text = await fetchText(url);
+  for (const file of REQUIRED_FILES) {
+    if (!files.has(file)) {
+      throw new Error(
+        `Release ${release.tag_name} (${sourceLabel}) is missing required ${file}.`,
+      );
+    }
+  }
+  for (const file of DB_FILES) {
+    const body = files.get(file);
+    if (!body) continue;
     try {
-      JSON.parse(text);
+      JSON.parse(body);
     } catch (err) {
       throw new Error(`Release ${file} is not valid JSON: ${(err as Error).message}`);
     }
-    buffered.push({ file, body: text });
+    buffered.push({ file, body });
   }
 
   // Stage 2 — write atomically: every file goes to .tmp first, then rename.
@@ -247,8 +341,8 @@ export async function downloadSource(
   ) as { databaseVersion: number; databaseVersionCreatedAt: string; scrapedAt: string };
   onProgress?.({
     file: 'done',
-    current: filesToFetch.length,
-    total: filesToFetch.length,
+    current: buffered.length,
+    total: buffered.length,
   });
   return {
     databaseVersion: dbJson.databaseVersion,

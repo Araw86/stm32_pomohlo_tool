@@ -860,6 +860,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/adm-zip@npm:^0.5.8":
+  version: 0.5.8
+  resolution: "@types/adm-zip@npm:0.5.8"
+  dependencies:
+    "@types/node": "*"
+  checksum: 3a3ca24d0e982d324de4f94523363f14b98d534bd8d041d4f2daf42b89cb4906f4e8bf1207829a8d6f8883d5207fe0050d4fc96a10ed4e1f2062d6d45cc78646
+  languageName: node
+  linkType: hard
+
 "@types/cacheable-request@npm:^6.0.1":
   version: 6.0.3
   resolution: "@types/cacheable-request@npm:6.0.3"
@@ -1322,6 +1331,13 @@ __metadata:
   bin:
     acorn: bin/acorn
   checksum: 4079b67283b94935157698831967642f24a075c52ce3feaaaafe095776dfbe15d86a1b33b1e53860fc0d062ed6c83f4284a5c87c85b9ad51853a01173da6097f
+  languageName: node
+  linkType: hard
+
+"adm-zip@npm:^0.5.17":
+  version: 0.5.17
+  resolution: "adm-zip@npm:0.5.17"
+  checksum: 1b05b8b76538cdf7d34369961866602859941ffbdacf20e10459394f99a60e161ee3b937f15bf485f514745f2376531d42553a6667a67841cb1585a5d7611319
   languageName: node
   linkType: hard
 
@@ -5983,9 +5999,11 @@ __metadata:
     "@mui/icons-material": ^6.1.9
     "@mui/material": ^6.1.9
     "@reduxjs/toolkit": ^2.5.1
+    "@types/adm-zip": ^0.5.8
     "@types/node": ^22.10.1
     "@types/react": ^18.3.12
     "@types/react-dom": ^18.3.1
+    adm-zip: ^0.5.17
     copy-webpack-plugin: ^11.0.0
     css-loader: ^6.7.3
     electron: ^34.2.0

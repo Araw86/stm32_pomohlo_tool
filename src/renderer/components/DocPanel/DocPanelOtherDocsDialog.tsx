@@ -27,6 +27,7 @@ import ClearIcon from '@mui/icons-material/Clear';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../store/storeRenderer';
 import type { Device, DocumentEntry, Subfamily } from '../../../shared/types/database';
+import { liveVersion } from '../../../shared/types/database';
 import { ipc } from './docApi';
 import { KIND_BY_DOCTYPE, shortLabelForType } from './docKinds';
 
@@ -188,9 +189,11 @@ function DocPanelOtherDocsItem({ doc }: ItemProps): JSX.Element {
     if (busy) return;
     setBusy(true);
     try {
+      const live = liveVersion(doc);
       const result = await ipc()?.openOrDownload(doc.id, doc.url, {
-        version: doc.version,
-        lastUpdate: doc.lastUpdate,
+        version: live?.version,
+        lastUpdate: live?.lastUpdate,
+        pdfCreated: live?.pdfCreated,
       });
       if (result?.status === 'error') {
         setErrorMsg(result.message ?? 'Failed to open document');
@@ -209,6 +212,7 @@ function DocPanelOtherDocsItem({ doc }: ItemProps): JSX.Element {
   };
 
   const label = shortLabelForType(doc.type);
+  const live = liveVersion(doc);
 
   return (
     <ListItem disableGutters>
@@ -219,7 +223,7 @@ function DocPanelOtherDocsItem({ doc }: ItemProps): JSX.Element {
           </Avatar>
         </ListItemAvatar>
         <ListItemText
-          primary={`${doc.id} · ${doc.type} · rev ${doc.version}`}
+          primary={`${doc.id} · ${doc.type} · rev ${live?.version ?? '—'}`}
           secondary={doc.title}
           sx={{ wordBreak: 'break-word' }}
         />

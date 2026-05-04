@@ -1,11 +1,17 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { DocumentEntry } from '../../shared/types/database';
+import { liveVersion } from '../../shared/types/database';
 
 export interface SidecarMeta {
   id: string;
+  /** Live version label at the time of download (e.g. "13.0"). */
   version: string;
+  /** ST "Last update" date for the downloaded version. */
   lastUpdate: string;
+  /** PDF /CreationDate metadata for the downloaded version. */
+  pdfCreated: string;
+  /** When this app wrote the PDF to disk. */
   downloadedAt: string;
 }
 
@@ -28,10 +34,13 @@ export function readSidecar(repoPath: string, docId: string): SidecarMeta | null
 }
 
 export function writeSidecar(repoPath: string, doc: DocumentEntry): void {
+  const live = liveVersion(doc);
+  if (!live) return;
   const meta: SidecarMeta = {
     id: doc.id,
-    version: doc.version,
-    lastUpdate: doc.lastUpdate,
+    version: live.version,
+    lastUpdate: live.lastUpdate ?? '',
+    pdfCreated: live.pdfCreated ?? '',
     downloadedAt: new Date().toISOString(),
   };
   try {
@@ -50,13 +59,14 @@ export function writeSidecar(repoPath: string, doc: DocumentEntry): void {
 export function writeSidecarLite(
   repoPath: string,
   docId: string,
-  meta?: { version?: string; lastUpdate?: string },
+  meta?: { version?: string; lastUpdate?: string; pdfCreated?: string },
 ): void {
-  if (!meta || (!meta.version && !meta.lastUpdate)) return;
+  if (!meta || (!meta.version && !meta.lastUpdate && !meta.pdfCreated)) return;
   const sidecar: SidecarMeta = {
     id: docId,
     version: meta.version ?? '',
     lastUpdate: meta.lastUpdate ?? '',
+    pdfCreated: meta.pdfCreated ?? '',
     downloadedAt: new Date().toISOString(),
   };
   try {

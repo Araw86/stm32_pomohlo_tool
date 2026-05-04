@@ -10,7 +10,8 @@ import {
   sidecarPath,
   writeSidecar,
 } from './sidecar';
-import type { DocumentEntry } from '../../shared/types/database';
+import type { Device, DocumentEntry } from '../../shared/types/database';
+import { liveVersion } from '../../shared/types/database';
 
 export type DownloadMode = 'all' | 'missing' | 'new';
 
@@ -49,12 +50,53 @@ function getActiveWindow(): BrowserWindow | null {
   return BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null;
 }
 
-function backupExisting(
+interface OnDiskIndex {
+  /** All `*.pdf` filenames in the repo, lowercased. */
+  pdfNames: Set<string>;
+}
+
+function buildOnDiskIndex(repoPath: string): OnDiskIndex {
+  const pdfNames = new Set<string>();
+  try {
+    for (const name of fs.readdirSync(repoPath)) {
+      if (name.toLowerCase().endsWith('.pdf')) {
+        pdfNames.add(name.toLowerCase());
+      }
+    }
+  } catch (err) {
+    console.error('Failed to list repo for on-disk index:', err);
+  }
+  return { pdfNames };
+}
+
+/** Resolves the on-disk PDF for a document, accepting:
+ *  1. `${docId}.pdf`  — current convention
+ *  2. (Datasheets only) `${deviceId}.pdf` for any device that shares this DS,
+ *     to recognize legacy files saved during the per-device naming era. */
+function existingPdfFor(
+  doc: DocumentEntry,
+  devices: Device[],
+  index: OnDiskIndex,
+): string | null {
+  const primary = `${doc.id.toLowerCase()}.pdf`;
+  if (index.pdfNames.has(primary)) return primary;
+
+  if (doc.type === 'Datasheet') {
+    for (const dev of devices) {
+      if (dev.datasheetId !== doc.id) continue;
+      const candidate = `${dev.id.toLowerCase()}.pdf`;
+      if (index.pdfNames.has(candidate)) return candidate;
+    }
+  }
+  return null;
+}
+
+function backupExistingPath(
+  src: string,
   repoPath: string,
   docId: string,
   oldVersion: string | null,
 ): { backupPdf: string; movedSidecar: boolean } | null {
-  const src = pdfPath(repoPath, docId);
   if (!fs.existsSync(src)) return null;
 
   const backupDir = path.join(repoPath, 'backup');
@@ -84,6 +126,7 @@ function backupExisting(
 export async function runDownloads(
   mode: DownloadMode,
   documents: DocumentEntry[],
+  devices: Device[],
   onProgress: (p: DownloadProgress) => void,
 ): Promise<DownloadSummary> {
   if (runInFlight) {
@@ -112,6 +155,11 @@ export async function runDownloads(
     const win = getActiveWindow();
     if (!win) throw new Error('No active window for download');
 
+    const onDisk = buildOnDiskIndex(repoPath);
+    console.log(
+      `[runDownloads] mode=${mode}; ${onDisk.pdfNames.size} pdf(s) found in ${repoPath}`,
+    );
+
     for (let i = 0; i < documents.length; i++) {
       if (cancelRequested) {
         summary.cancelled = true;
@@ -123,25 +171,62 @@ export async function runDownloads(
       onProgress({ ...stepBase, status: 'starting' });
 
       const filePath = pdfPath(repoPath, doc.id);
-      const exists = fs.existsSync(filePath);
+      const existingName = existingPdfFor(doc, devices, onDisk);
+      const exists = existingName !== null;
 
       // Mode-specific decision
       if (mode === 'missing' && exists) {
         summary.skipped++;
-        onProgress({ ...stepBase, status: 'skipped', reason: 'already-on-disk' });
+        const reason =
+          existingName === `${doc.id.toLowerCase()}.pdf`
+            ? 'already-on-disk'
+            : `already-on-disk (legacy: ${existingName})`;
+        onProgress({ ...stepBase, status: 'skipped', reason });
         continue;
       }
 
       if (mode === 'new') {
         const sidecar = readSidecar(repoPath, doc.id);
-        if (sidecar && sidecar.version === doc.version) {
-          summary.skipped++;
-          onProgress({ ...stepBase, status: 'skipped', reason: 'up-to-date' });
-          continue;
-        }
+        const live = liveVersion(doc);
+        const dbCreated = live?.pdfCreated ? Date.parse(live.pdfCreated) : NaN;
+
         if (exists) {
+          // The actual on-disk file may be the canonical `${docId}.pdf` or
+          // a legacy per-device name; use the resolved one for stat().
+          const existingPath = path.join(repoPath, existingName!);
+
+          // Decide if the on-disk copy is up-to-date.
+          // 1) Sidecar pdfCreated is the most authoritative — newer-or-equal → up-to-date.
+          // 2) Else compare the file's mtime to the DB's pdfCreated. Older mtime → outdated.
+          // 3) Fallback: same version label in sidecar → up-to-date.
+          let upToDate = false;
+          if (sidecar?.pdfCreated && live?.pdfCreated) {
+            const localCreated = Date.parse(sidecar.pdfCreated);
+            if (!Number.isNaN(localCreated) && !Number.isNaN(dbCreated)) {
+              upToDate = localCreated >= dbCreated;
+            }
+          }
+          if (!upToDate && !Number.isNaN(dbCreated)) {
+            try {
+              const mtimeMs = fs.statSync(existingPath).mtime.getTime();
+              upToDate = mtimeMs >= dbCreated;
+            } catch {
+              // ignore — fall through to version check
+            }
+          }
+          if (!upToDate && sidecar && live && sidecar.version === live.version) {
+            upToDate = true;
+          }
+
+          if (upToDate) {
+            summary.skipped++;
+            onProgress({ ...stepBase, status: 'skipped', reason: 'up-to-date' });
+            continue;
+          }
+
           try {
-            backupExisting(repoPath, doc.id, sidecar?.version ?? null);
+            // Move the existing file (whatever its name) into backup.
+            backupExistingPath(existingPath, repoPath, doc.id, sidecar?.version ?? null);
             summary.backedUp++;
             onProgress({ ...stepBase, status: 'backed-up' });
           } catch (err) {

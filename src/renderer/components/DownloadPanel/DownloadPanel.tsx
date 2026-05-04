@@ -168,6 +168,7 @@ function DownloadPanel(): JSX.Element {
                 startIcon={m.icon}
                 onClick={() => handleStart(m.id)}
                 disabled={running || !repoPath || documents.length === 0}
+                sx={{ flexShrink: 0, whiteSpace: 'nowrap' }}
               >
                 Start
               </Button>

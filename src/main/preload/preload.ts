@@ -32,7 +32,7 @@ contextBridge.exposeInMainWorld('ipc_handlers', {
   openOrDownload: (
     docId: string,
     url: string,
-    meta?: { version?: string; lastUpdate?: string },
+    meta?: { version?: string; lastUpdate?: string; pdfCreated?: string },
   ) => ipcRenderer.invoke('doc:openOrDownload', { docId, url, meta }),
   startDownloads: (mode: 'all' | 'missing' | 'new') =>
     ipcRenderer.invoke('downloads:start', { mode }),
@@ -42,6 +42,18 @@ contextBridge.exposeInMainWorld('ipc_handlers', {
     ipcRenderer.on('downloads:progress', listener);
     return () => {
       ipcRenderer.removeListener('downloads:progress', listener);
+    };
+  },
+  listDatabaseSources: () => ipcRenderer.invoke('databaseSource:list'),
+  checkLatestDatabase: (sourceId: string) =>
+    ipcRenderer.invoke('databaseSource:checkLatest', { sourceId }),
+  downloadDatabaseSource: (sourceId: string) =>
+    ipcRenderer.invoke('databaseSource:download', { sourceId }),
+  onDatabaseSourceProgress: (cb: (data: any) => void) => {
+    const listener = (_event: unknown, data: any) => cb(data);
+    ipcRenderer.on('databaseSource:progress', listener);
+    return () => {
+      ipcRenderer.removeListener('databaseSource:progress', listener);
     };
   },
 });

@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import { grey } from '@mui/material/colors';
 import type { Device, DocumentEntry } from '../../../shared/types/database';
+import { liveVersion } from '../../../shared/types/database';
 import { ipc } from './docApi';
 import { DocKind, KIND_COLORS, KIND_LONG_LABEL } from './docKinds';
 
@@ -48,8 +49,13 @@ function DocPanelDocGroup({
     setAnchorEl(null);
     setBusy(true);
     try {
-      const meta = document
-        ? { version: document.version, lastUpdate: document.lastUpdate }
+      const live = document ? liveVersion(document) : undefined;
+      const meta = live
+        ? {
+            version: live.version,
+            lastUpdate: live.lastUpdate,
+            pdfCreated: live.pdfCreated,
+          }
         : undefined;
       const result = await ipc()?.openOrDownload(downloadId!, url!, meta);
       if (result?.status === 'error') {
@@ -107,10 +113,19 @@ function DocPanelDocGroup({
                 {document.id} — {KIND_LONG_LABEL[kind]}
               </Typography>
               <Typography variant="body2">{document.title}</Typography>
-              <Typography variant="body2">Rev {document.version}</Typography>
-              <Typography variant="body2" sx={{ mb: 1 }}>
-                Updated {document.lastUpdate}
-              </Typography>
+              {(() => {
+                const live = liveVersion(document);
+                return (
+                  <Fragment>
+                    <Typography variant="body2">
+                      Rev {live?.version ?? '—'}
+                    </Typography>
+                    <Typography variant="body2" sx={{ mb: 1 }}>
+                      Updated {live?.lastUpdate ?? '—'}
+                    </Typography>
+                  </Fragment>
+                );
+              })()}
             </Fragment>
           ) : (
             <Typography variant="body2" sx={{ mb: 1 }} color="text.secondary">

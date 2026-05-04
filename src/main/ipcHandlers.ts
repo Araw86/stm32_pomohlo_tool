@@ -10,6 +10,12 @@ import {
   requestCancel,
   runDownloads,
 } from './utilities/runDownloads';
+import {
+  checkLatest,
+  downloadSource,
+  getSource,
+  listSources,
+} from './utilities/databaseSources';
 import { store } from './store/mainStore';
 import { setDatabase, setDatabaseError } from '../shared/redux/slices/databaseSlice';
 import { setRepoPath } from '../shared/redux/slices/configSlice';
@@ -41,7 +47,11 @@ function fIpcHandlers(): void {
     'doc:openOrDownload',
     async (
       _event: IpcMainInvokeEvent,
-      data: { docId: string; url: string; meta?: { version?: string; lastUpdate?: string } },
+      data: {
+        docId: string;
+        url: string;
+        meta?: { version?: string; lastUpdate?: string; pdfCreated?: string };
+      },
     ) => {
       return openOrDownload(data.docId, data.url, data.meta);
     },
@@ -60,8 +70,9 @@ function fIpcHandlers(): void {
       // have to ship hundreds of records over IPC each call.
       const state = store.getState();
       const documents = state.databaseSlice.documents;
+      const devices = state.databaseSlice.devices;
       try {
-        const summary = await runDownloads(data.mode, documents, (p) => {
+        const summary = await runDownloads(data.mode, documents, devices, (p) => {
           if (!event.sender.isDestroyed()) {
             event.sender.send('downloads:progress', p);
           }
@@ -78,6 +89,59 @@ function fIpcHandlers(): void {
     requestCancel();
     return { ok: true as const };
   });
+
+  ipcMain.handle('databaseSource:list', () => {
+    return { sources: listSources() };
+  });
+
+  ipcMain.handle(
+    'databaseSource:checkLatest',
+    async (_event: IpcMainInvokeEvent, data: { sourceId: string }) => {
+      const source = getSource(data.sourceId);
+      if (!source) {
+        return { ok: false as const, message: `Unknown source ${data.sourceId}` };
+      }
+      try {
+        const remote = await checkLatest(source);
+        return { ok: true as const, remote };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false as const, message };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'databaseSource:download',
+    async (event: IpcMainInvokeEvent, data: { sourceId: string }) => {
+      const source = getSource(data.sourceId);
+      if (!source) {
+        return { ok: false as const, message: `Unknown source ${data.sourceId}` };
+      }
+      try {
+        const remote = await downloadSource(source, (p) => {
+          if (!event.sender.isDestroyed()) {
+            event.sender.send('databaseSource:progress', {
+              sourceId: source.id,
+              ...p,
+            });
+          }
+        });
+        // Reload the local DB into the shared store so the UI refreshes.
+        try {
+          const payload = loadDatabase(source.id);
+          store.dispatch(setDatabase(payload));
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          store.dispatch(setDatabaseError(message));
+        }
+        return { ok: true as const, remote };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false as const, message };
+      }
+    },
+  );
 }
 
 const ipcHandlers = fIpcHandlers;

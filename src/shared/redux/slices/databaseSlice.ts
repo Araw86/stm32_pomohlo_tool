@@ -1,5 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import type {
+  DatabaseMeta,
   DatabasePayload,
   DocumentEntry,
   Family,
@@ -14,6 +15,7 @@ export interface DatabaseState {
   subfamilies: Subfamily[];
   documents: DocumentEntry[];
   devices: Device[];
+  meta: DatabaseMeta | null;
 }
 
 const initialState: DatabaseState = {
@@ -23,6 +25,7 @@ const initialState: DatabaseState = {
   subfamilies: [],
   documents: [],
   devices: [],
+  meta: null,
 };
 
 const databaseSlice = createSlice({
@@ -34,6 +37,7 @@ const databaseSlice = createSlice({
       state.subfamilies = action.payload.subfamilies;
       state.documents = action.payload.documents;
       state.devices = action.payload.devices;
+      state.meta = action.payload.meta;
       state.loaded = true;
       state.error = null;
     },

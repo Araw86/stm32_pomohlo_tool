@@ -44,7 +44,7 @@ async function ensureRepoPath(): Promise<string | null> {
 export async function openOrDownload(
   docId: string,
   url: string,
-  meta?: { version?: string; lastUpdate?: string },
+  meta?: { version?: string; lastUpdate?: string; pdfCreated?: string },
 ): Promise<OpenResult> {
   try {
     const repoPath = await ensureRepoPath();

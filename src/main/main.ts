@@ -1,13 +1,10 @@
 import { app, session, dialog, BrowserWindow, Menu, Notification, MessageBoxOptions } from 'electron'
 const path = require('path');
 
+
 /*debug*/
 const isDev = require('electron-is-dev')
-const {
-  default: installExtension,
-  REDUX_DEVTOOLS,
-  REACT_DEVELOPER_TOOLS
-} = require("electron-devtools-installer");
+import {  installExtension,  REDUX_DEVTOOLS, REACT_DEVELOPER_TOOLS} from "electron-devtools-installer"
 
 
 /*update */
@@ -19,11 +16,16 @@ import ipcHandlers from './ipcHandlers'
 const electronDl = require('electron-dl');
 // const storeHandling = require('./utilities/storeHandling.js');
 
+/*import store */
+
+import {store} from './store/mainStore'
+
 electronDl();
+let win: BrowserWindow | null;
 
 async function createWindow() {
   // Create the browser window.
-  const win = new BrowserWindow({
+  win = new BrowserWindow({
     width: 800,
     height: 600,
     webPreferences: {
@@ -31,7 +33,8 @@ async function createWindow() {
       contextIsolation: true,
       preload: path.join(__dirname, 'preload/preload.js'),
     },
-    autoHideMenuBar: true
+    autoHideMenuBar: true // not show menu in window
+    // autoHideMenuBar: false // show menu in window
   });
 
 
@@ -57,13 +60,21 @@ async function createWindow() {
 
   // Menu.setApplicationMenu(menu)
 
+
+  if (!isDev) {
+    win.loadFile(path.join(__dirname, '../renderer/index.html'))
+    autoUpdater.checkForUpdates();
+  }
+
   // Open the DevTools.
   if (isDev) {
 
     await win.loadFile('./build/renderer/index.html')
+    // console.log("Open dev tools")
     win.webContents.openDevTools({ mode: "detach" });
     // win.webContents.once("dom-ready", async () => {
-    //   await installExtension([REDUX_DEVTOOLS])
+    //   console.log('Call installExtension')
+    //   await installExtension([REDUX_DEVTOOLS, REACT_DEVELOPER_TOOLS], { loadExtensionOptions: {allowFileAccess: true}})
     //     .then((name) => console.log(`Added Extension:  ${name}`))
     //     .catch((err) => console.log("An error occurred: ", err))
     //     .finally(() => {
@@ -73,10 +84,6 @@ async function createWindow() {
     // });
 
   };
-  if (!isDev) {
-    win.loadFile(path.join(__dirname, '../renderer/index.html'))
-    autoUpdater.checkForUpdates();
-  }
 
 }
 
@@ -89,15 +96,36 @@ async function createWindow() {
 
 // };
 
-app.on('ready', () => {
-
-  [REDUX_DEVTOOLS].map((extention)=>{
-    installExtension(extention)
-      .then((name:string)=> console.log(`Added extention ${name}`))
-      .catch((err:any)=>console.log("An errro occured in extention adding: ",err))
-  })
+app.on('ready',async () => {
   createWindow();
   ipcHandlers();
+  if (isDev) {
+    try { 
+      // [REDUX_DEVTOOLS,REACT_DEVELOPER_TOOLS].map((extention)=>{
+      //   installExtension(extention)
+      //     .then((ext:Electron.Extension)=> console.log(`Added extention ${ext.name}`))
+      //     .catch((err:any)=>console.log("An errro occured in extention adding: ",err))
+      // })
+      
+      // win.webContents.openDevTools({ mode: "detach" });
+      const extensions = await installExtension([REACT_DEVELOPER_TOOLS], {
+      // const extensions = await installExtension([REDUX_DEVTOOLS, REACT_DEVELOPER_TOOLS], {
+      // const extensions = await installExtension([{id:'lmhkpmbekcpmknklioeibfkpmmfibljd'}], {
+        // forceDownload: true,
+        loadExtensionOptions: {allowFileAccess: true},
+      })
+        
+      console.log(`Added Extensions:  ${extensions.map(ext => ext.name).join(", ")}`)
+      await require("node:timers/promises").setTimeout(1000);
+      session.defaultSession.getAllExtensions().map((ext) => {
+        console.log(`Loading Extension: ${ext.name}`);
+        session.defaultSession.loadExtension(ext.path)
+      });
+    } catch (err) {
+      console.error('An error occurred while loading extensions: ', err);
+    }
+  }
+
 
 });
 
@@ -192,3 +220,17 @@ app.on('activate', function () {
   // dock icon is clicked and there are no other windows open.
   if (BrowserWindow.getAllWindows().length === 0) createWindow()
 });
+
+/*store test */
+const render = () => {
+  // if (win) {
+  //     const { testSlice } = store.getState()
+  //     console.log('store change: ');
+  //     console.log(testSlice);
+  // }
+}
+
+store.subscribe(render);
+
+console.log('store subscrabe')
+

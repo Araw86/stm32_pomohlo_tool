@@ -7,7 +7,7 @@ On click if document is present he will opens it
 
 ![23_01_06_268](https://user-images.githubusercontent.com/48834492/210958095-11756a88-0980-409b-823b-008045d37d25.png)
 
-## Configuration
+<!-- ## Configuration
 
 App must have correctly configured paths in settings:
 
@@ -36,4 +36,4 @@ Be sure you have correct repository path.
 The program is able to open the documentation, if file is downloaded in repository.
 This is possible to set in configuration.
 
-The documentation can be downloaded with STM32CubeFinder which still have this option. From MX this option disappeared.
+The documentation can be downloaded with STM32CubeFinder which still have this option. From MX this option disappeared. -->

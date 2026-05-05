@@ -66,6 +66,8 @@ export type DatabaseSourceDownloadResult =
 interface IpcHandlers {
   loadDatabase: () => Promise<{ status: 'ok' } | { status: 'error'; message: string }>;
   pickRepoPath: () => Promise<{ repoPath: string | null }>;
+  setVersionCheckOnOpen: (enabled: boolean) => Promise<{ ok: true }>;
+  setCheckDatabaseOnStartup: (enabled: boolean) => Promise<{ ok: true }>;
   openOrDownload: (
     docId: string,
     url: string,

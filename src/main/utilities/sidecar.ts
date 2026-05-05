@@ -54,6 +54,41 @@ export function writeSidecar(repoPath: string, doc: DocumentEntry): void {
   }
 }
 
+/** Move an existing PDF (and its sidecar, when present) into the repo's
+ * `backup/` folder. The destination is named `${docId}_v${oldVersion}.pdf`,
+ * or `${docId}_v_unknown.pdf` if no version is known. Returns the backup
+ * path, or null when there's nothing to back up. */
+export function backupExistingPdf(
+  src: string,
+  repoPath: string,
+  docId: string,
+  oldVersion: string | null,
+): { backupPdf: string; movedSidecar: boolean } | null {
+  if (!fs.existsSync(src)) return null;
+
+  const backupDir = path.join(repoPath, 'backup');
+  if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+
+  const verPart = oldVersion ? `v${oldVersion}` : 'v_unknown';
+  const safeVer = verPart.replace(/[^A-Za-z0-9_.-]/g, '_');
+
+  let target = path.join(backupDir, `${docId}_${safeVer}.pdf`);
+  if (fs.existsSync(target)) {
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    target = path.join(backupDir, `${docId}_${safeVer}_${stamp}.pdf`);
+  }
+  fs.renameSync(src, target);
+
+  let movedSidecar = false;
+  const oldSidecar = sidecarPath(repoPath, docId);
+  if (fs.existsSync(oldSidecar)) {
+    const sidecarTarget = target.replace(/\.pdf$/, '.json');
+    fs.renameSync(oldSidecar, sidecarTarget);
+    movedSidecar = true;
+  }
+  return { backupPdf: target, movedSidecar };
+}
+
 /** Lightweight metadata variant used by the per-click `openOrDownload` flow,
  * which doesn't have full DocumentEntry context. */
 export function writeSidecarLite(

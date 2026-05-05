@@ -1,9 +1,13 @@
-import { ipcMain } from 'electron';
+import { BrowserWindow, dialog, ipcMain } from 'electron';
 import { IpcMainInvokeEvent } from 'electron/main';
 
 import { loadDatabase } from './utilities/loadDatabase';
-import { loadConfig } from './utilities/configStore';
-import { openOrDownload, pickRepoPath } from './utilities/docDownload';
+import { loadConfig, saveConfig } from './utilities/configStore';
+import {
+  openOrDownload,
+  pickRepoPath,
+  setVersionCheckOnOpen,
+} from './utilities/docDownload';
 import {
   DownloadMode,
   isRunning,
@@ -11,6 +15,7 @@ import {
   runDownloads,
 } from './utilities/runDownloads';
 import {
+  MAIN_SOURCE,
   checkLatest,
   downloadSource,
   getSource,
@@ -18,17 +23,105 @@ import {
 } from './utilities/databaseSources';
 import { store } from './store/mainStore';
 import { setDatabase, setDatabaseError } from '../shared/redux/slices/databaseSlice';
-import { setRepoPath } from '../shared/redux/slices/configSlice';
+import {
+  setRepoPath,
+  setVersionCheckOnOpen as setVersionCheckOnOpenAction,
+  setCheckDatabaseOnStartup as setCheckDatabaseOnStartupAction,
+} from '../shared/redux/slices/configSlice';
+
+let startupCheckAttempted = false;
+
+function getActiveWindow(): BrowserWindow | null {
+  return BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null;
+}
+
+async function maybeRunStartupDatabaseCheck(): Promise<void> {
+  if (startupCheckAttempted) return;
+  startupCheckAttempted = true;
+
+  const config = loadConfig();
+  if (config.checkDatabaseOnStartup === false) return;
+
+  const source = MAIN_SOURCE;
+  let remote;
+  try {
+    remote = await checkLatest(source);
+  } catch (err) {
+    // Network errors etc. — don't bother the user on startup.
+    console.warn('Startup database check failed:', err);
+    return;
+  }
+
+  const localTag = store.getState().databaseSlice.meta?.releaseTag ?? null;
+  if (localTag && localTag === remote.releaseTag) {
+    return; // up to date
+  }
+
+  const win = getActiveWindow();
+  if (!win) return;
+
+  const detail = (() => {
+    const lines: string[] = [];
+    if (localTag) lines.push(`Local: ${localTag}`);
+    else lines.push('Local: bundled (no release downloaded yet)');
+    lines.push(
+      `Latest: ${remote.releaseTag} (published ${remote.releasePublishedAt.slice(0, 10)})`,
+    );
+    lines.push(`databaseVersion: v${remote.databaseVersion}`);
+    return lines.join('\n');
+  })();
+
+  const result = await dialog.showMessageBox(win, {
+    type: 'info',
+    title: 'Database update available',
+    message: `A new release (${remote.releaseTag}) is available for ${source.displayName}.`,
+    detail,
+    buttons: ['Download now', 'Later', "Don't ask again"],
+    defaultId: 0,
+    cancelId: 1,
+  });
+
+  if (result.response === 2) {
+    saveConfig({ checkDatabaseOnStartup: false });
+    store.dispatch(setCheckDatabaseOnStartupAction(false));
+    return;
+  }
+  if (result.response !== 0) return;
+
+  try {
+    await downloadSource(source);
+    const payload = loadDatabase(source.id);
+    store.dispatch(setDatabase(payload));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('Auto download failed:', err);
+    if (win && !win.isDestroyed()) {
+      await dialog.showMessageBox(win, {
+        type: 'error',
+        title: 'Database download failed',
+        message: `Could not download release ${remote.releaseTag}.`,
+        detail: message,
+        buttons: ['OK'],
+      });
+    }
+  }
+}
 
 function fIpcHandlers(): void {
-  // Hydrate persisted repo path into the shared redux store so the renderer sees it.
-  const { repoPath } = loadConfig();
-  if (repoPath) store.dispatch(setRepoPath(repoPath));
+  // Hydrate persisted config into the shared redux store so the renderer sees it.
+  const persisted = loadConfig();
+  if (persisted.repoPath) store.dispatch(setRepoPath(persisted.repoPath));
+  store.dispatch(setVersionCheckOnOpenAction(persisted.versionCheckOnOpen !== false));
+  store.dispatch(
+    setCheckDatabaseOnStartupAction(persisted.checkDatabaseOnStartup !== false),
+  );
 
   ipcMain.handle('database:load', (_event: IpcMainInvokeEvent) => {
     try {
       const payload = loadDatabase();
       store.dispatch(setDatabase(payload));
+      // Fire-and-forget the startup check on the very first successful load.
+      void maybeRunStartupDatabaseCheck();
       return { status: 'ok' as const };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -42,6 +135,23 @@ function fIpcHandlers(): void {
     const picked = await pickRepoPath();
     return { repoPath: picked };
   });
+
+  ipcMain.handle(
+    'config:setVersionCheckOnOpen',
+    (_event: IpcMainInvokeEvent, data: { enabled: boolean }) => {
+      setVersionCheckOnOpen(data.enabled);
+      return { ok: true as const };
+    },
+  );
+
+  ipcMain.handle(
+    'config:setCheckDatabaseOnStartup',
+    (_event: IpcMainInvokeEvent, data: { enabled: boolean }) => {
+      saveConfig({ checkDatabaseOnStartup: data.enabled });
+      store.dispatch(setCheckDatabaseOnStartupAction(data.enabled));
+      return { ok: true as const };
+    },
+  );
 
   ipcMain.handle(
     'doc:openOrDownload',

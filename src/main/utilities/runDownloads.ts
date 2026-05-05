@@ -5,9 +5,9 @@ import { download } from 'electron-dl';
 
 import { loadConfig } from './configStore';
 import {
+  backupExistingPdf,
   pdfPath,
   readSidecar,
-  sidecarPath,
   writeSidecar,
 } from './sidecar';
 import type { Device, DocumentEntry } from '../../shared/types/database';
@@ -89,38 +89,6 @@ function existingPdfFor(
     }
   }
   return null;
-}
-
-function backupExistingPath(
-  src: string,
-  repoPath: string,
-  docId: string,
-  oldVersion: string | null,
-): { backupPdf: string; movedSidecar: boolean } | null {
-  if (!fs.existsSync(src)) return null;
-
-  const backupDir = path.join(repoPath, 'backup');
-  if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
-
-  const verPart = oldVersion ? `v${oldVersion}` : 'v_unknown';
-  const safeVer = verPart.replace(/[^A-Za-z0-9_.-]/g, '_');
-
-  // If a backup of this version already exists, suffix with timestamp.
-  let target = path.join(backupDir, `${docId}_${safeVer}.pdf`);
-  if (fs.existsSync(target)) {
-    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-    target = path.join(backupDir, `${docId}_${safeVer}_${stamp}.pdf`);
-  }
-  fs.renameSync(src, target);
-
-  let movedSidecar = false;
-  const oldSidecar = sidecarPath(repoPath, docId);
-  if (fs.existsSync(oldSidecar)) {
-    const sidecarTarget = target.replace(/\.pdf$/, '.json');
-    fs.renameSync(oldSidecar, sidecarTarget);
-    movedSidecar = true;
-  }
-  return { backupPdf: target, movedSidecar };
 }
 
 export async function runDownloads(
@@ -226,7 +194,7 @@ export async function runDownloads(
 
           try {
             // Move the existing file (whatever its name) into backup.
-            backupExistingPath(existingPath, repoPath, doc.id, sidecar?.version ?? null);
+            backupExistingPdf(existingPath, repoPath, doc.id, sidecar?.version ?? null);
             summary.backedUp++;
             onProgress({ ...stepBase, status: 'backed-up' });
           } catch (err) {

@@ -4,9 +4,19 @@ import { app } from 'electron';
 
 interface PersistedConfig {
   repoPath: string | null;
+  /** When true, opening a doc that exists locally checks DB version and
+   * prompts to download a newer one. */
+  versionCheckOnOpen: boolean;
+  /** When true, the app pings the database source on startup and prompts
+   * the user to download a new release if one is available. */
+  checkDatabaseOnStartup: boolean;
 }
 
-const DEFAULTS: PersistedConfig = { repoPath: null };
+const DEFAULTS: PersistedConfig = {
+  repoPath: null,
+  versionCheckOnOpen: true,
+  checkDatabaseOnStartup: true,
+};
 
 function configFilePath(): string {
   return path.join(app.getPath('userData'), 'config.json');

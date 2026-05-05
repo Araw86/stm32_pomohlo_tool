@@ -29,6 +29,10 @@ contextBridge.exposeInMainWorld('versions', {
 contextBridge.exposeInMainWorld('ipc_handlers', {
   loadDatabase: () => ipcRenderer.invoke('database:load'),
   pickRepoPath: () => ipcRenderer.invoke('config:pickRepoPath'),
+  setVersionCheckOnOpen: (enabled: boolean) =>
+    ipcRenderer.invoke('config:setVersionCheckOnOpen', { enabled }),
+  setCheckDatabaseOnStartup: (enabled: boolean) =>
+    ipcRenderer.invoke('config:setCheckDatabaseOnStartup', { enabled }),
   openOrDownload: (
     docId: string,
     url: string,

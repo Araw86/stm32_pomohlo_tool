@@ -1,6 +1,6 @@
 {
   "name": "stm32_pomohlo_tool",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "dev": true,
   "description": "Testing example for update and stlink access to stm32",
   "author": "Radek Ripa",
@@ -63,6 +63,7 @@
     "extends": null,
     "appId": "app.stm32_pomohlo_tool",
     "productName": "stm32 pomohlo tool",
+    "icon": "./build/icon.ico",
     "files": [
       "build/**/*",
       "node_modules/**/*",

@@ -11,6 +11,7 @@ import {
 import {
   DownloadMode,
   isRunning,
+  previewDownloadCounts,
   requestCancel,
   runDownloads,
 } from './utilities/runDownloads';
@@ -217,6 +218,17 @@ function fIpcHandlers(): void {
       }
     },
   );
+
+  ipcMain.handle('downloads:preview', () => {
+    const { repoPath } = loadConfig();
+    const state = store.getState();
+    const counts = previewDownloadCounts(
+      repoPath ?? null,
+      state.databaseSlice.documents,
+      state.databaseSlice.devices,
+    );
+    return { counts };
+  });
 
   ipcMain.handle('downloads:cancel', () => {
     requestCancel();

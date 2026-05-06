@@ -3,6 +3,7 @@ import {
   Alert,
   Box,
   Button,
+  Chip,
   LinearProgress,
   Paper,
   Stack,
@@ -15,6 +16,7 @@ import StopIcon from '@mui/icons-material/Stop';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../store/storeRenderer';
 import {
+  DownloadCounts,
   DownloadMode,
   DownloadProgress,
   DownloadSummary,
@@ -52,6 +54,46 @@ const MODES: ModeDef[] = [
   },
 ];
 
+type ChipColor = 'default' | 'primary' | 'success' | 'warning';
+type ChipVariant = 'filled' | 'outlined';
+
+function countLabelFor(
+  mode: DownloadMode,
+  counts: DownloadCounts | null,
+): { text: string; color: ChipColor; variant: ChipVariant } | null {
+  if (!counts) return null;
+  if (counts.noRepo) {
+    // 'all' mode doesn't need the repo to be configured to know its count.
+    if (mode === 'all') {
+      return { text: `${counts.total} docs`, color: 'primary', variant: 'outlined' };
+    }
+    return { text: 'no repo', color: 'default', variant: 'outlined' };
+  }
+  switch (mode) {
+    case 'all':
+      return { text: `${counts.total} docs`, color: 'primary', variant: 'outlined' };
+    case 'missing':
+      return counts.missing === 0
+        ? { text: 'nothing missing', color: 'success', variant: 'outlined' }
+        : {
+            text: `${counts.missing} missing of ${counts.total}`,
+            color: 'warning',
+            variant: 'outlined',
+          };
+    case 'new':
+      return counts.toUpdate === 0
+        ? { text: 'all up to date', color: 'success', variant: 'outlined' }
+        : {
+            text:
+              counts.outdated === 0
+                ? `${counts.toUpdate} new`
+                : `${counts.toUpdate} new (${counts.outdated} outdated, ${counts.missing} missing)`,
+            color: 'warning',
+            variant: 'outlined',
+          };
+  }
+}
+
 function statusChip(s: DownloadProgress['status']): string {
   switch (s) {
     case 'starting':
@@ -78,6 +120,7 @@ function DownloadPanel(): JSX.Element {
   const [progress, setProgress] = useState<DownloadProgress | null>(null);
   const [summary, setSummary] = useState<DownloadSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [counts, setCounts] = useState<DownloadCounts | null>(null);
 
   // Keep the most recent unsubscribe so we can clean up.
   const unsubscribeRef = useRef<(() => void) | null>(null);
@@ -90,6 +133,28 @@ function DownloadPanel(): JSX.Element {
       unsubscribeRef.current = null;
     };
   }, []);
+
+  // Recompute counts whenever the panel mounts, the repo changes, the
+  // doc list changes, or a download finishes (so the chips reflect the
+  // post-run state without a manual refresh).
+  useEffect(() => {
+    let cancelled = false;
+    if (documents.length === 0) {
+      setCounts(null);
+      return undefined;
+    }
+    (async () => {
+      try {
+        const res = await ipc()?.previewDownloads();
+        if (!cancelled && res) setCounts(res.counts);
+      } catch {
+        if (!cancelled) setCounts(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [repoPath, documents.length, summary]);
 
   const handleStart = async (mode: DownloadMode) => {
     if (running) return;
@@ -151,29 +216,41 @@ function DownloadPanel(): JSX.Element {
         )}
 
         <Stack spacing={2}>
-          {MODES.map((m) => (
-            <Paper
-              key={m.id}
-              variant="outlined"
-              sx={{ p: 2, display: 'flex', gap: 2, alignItems: 'center' }}
-            >
-              <Box sx={{ flexGrow: 1 }}>
-                <Typography variant="subtitle1">{m.title}</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {m.description}
-                </Typography>
-              </Box>
-              <Button
-                variant="contained"
-                startIcon={m.icon}
-                onClick={() => handleStart(m.id)}
-                disabled={running || !repoPath || documents.length === 0}
-                sx={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+          {MODES.map((m) => {
+            const countLabel = countLabelFor(m.id, counts);
+            return (
+              <Paper
+                key={m.id}
+                variant="outlined"
+                sx={{ p: 2, display: 'flex', gap: 2, alignItems: 'center' }}
               >
-                Start
-              </Button>
-            </Paper>
-          ))}
+                <Box sx={{ flexGrow: 1 }}>
+                  <Typography variant="subtitle1">{m.title}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {m.description}
+                  </Typography>
+                </Box>
+                {countLabel && (
+                  <Chip
+                    size="small"
+                    label={countLabel.text}
+                    color={countLabel.color}
+                    variant={countLabel.variant}
+                    sx={{ flexShrink: 0 }}
+                  />
+                )}
+                <Button
+                  variant="contained"
+                  startIcon={m.icon}
+                  onClick={() => handleStart(m.id)}
+                  disabled={running || !repoPath || documents.length === 0}
+                  sx={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+                >
+                  Start
+                </Button>
+              </Paper>
+            );
+          })}
         </Stack>
 
         {(running || progress) && (

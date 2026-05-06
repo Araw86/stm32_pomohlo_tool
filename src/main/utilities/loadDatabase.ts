@@ -40,30 +40,40 @@ function bundledDir(): string {
   );
 }
 
-/** Folder where the live database for a given source lives. Writable. */
+/** Folder where the live database for a given source lives. Writable.
+ *
+ * IMPORTANT: do NOT name this folder `databases` — Chromium reserves that
+ * name in `userData` for its own WebSQL/IndexedDB storage and wipes any
+ * unrecognized files inside it on every app startup. Using `databases`
+ * caused our downloaded JSONs to be silently deleted between sessions, so
+ * the bundled v45 seed was reapplied on each launch.
+ */
 export function liveDir(sourceId: string = DEFAULT_SOURCE_ID): string {
-  return path.join(app.getPath('userData'), 'databases', sourceId);
+  return path.join(app.getPath('userData'), 'local_databases', sourceId);
 }
 
 function ensureSeeded(sourceId: string): void {
   const target = liveDir(sourceId);
   const required = ['database.json', 'families.json', 'subfamilies.json', 'devices.json', 'documents.json'];
+  const dirExisted = fs.existsSync(target);
   const missing = required.filter((f) => !fs.existsSync(path.join(target, f)));
   if (missing.length === 0) return;
 
   const src = bundledDir();
-  if (!fs.existsSync(src)) return;
+  if (!fs.existsSync(src)) {
+    console.warn(`[ensureSeeded] bundled dir ${src} not found, skipping seed.`);
+    return;
+  }
 
-  // Loud warning — if this fires on a system that already downloaded a
-  // release, it means files went missing between sessions (e.g. a crash
-  // mid-rename) and we're about to mask the downloaded data with the
-  // bundled seed. The user was likely confused about why their old
-  // databaseVersion came back; surfacing it here makes the cause obvious.
-  if (fs.existsSync(target)) {
+  // If the live dir already existed but is missing files, that's a sign of
+  // partial corruption (e.g. a crash mid-write) — warn loudly so the cause
+  // of any version-rollback isn't invisible. On first run the dir simply
+  // doesn't exist yet, which is normal and silent.
+  if (dirExisted) {
     console.warn(
-      `[loadDatabase] live dir ${target} is missing required files [${missing.join(
+      `[ensureSeeded] live dir ${target} is missing files [${missing.join(
         ', ',
-      )}], filling from bundled seed at ${src}. If you previously downloaded a newer release, those files may have been lost.`,
+      )}]; filling from bundled seed. If you previously downloaded a newer release, those files may have been lost.`,
     );
   }
 
@@ -102,11 +112,6 @@ export function loadDatabase(sourceId: string = DEFAULT_SOURCE_ID): DatabasePayl
 
   const dbFile = readJson<RawDatabaseFile>(path.join(dir, 'database.json'));
   const release = readReleaseFile(dir);
-  console.info(
-    `[loadDatabase] source=${sourceId} dir=${dir} databaseVersion=v${dbFile.databaseVersion} releaseTag=${
-      release?.releaseTag ?? '(none)'
-    }`,
-  );
   const meta: DatabaseMeta = {
     databaseVersion: dbFile.databaseVersion,
     databaseVersionCreatedAt: dbFile.databaseVersionCreatedAt,

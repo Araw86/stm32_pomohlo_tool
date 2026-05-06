@@ -75,9 +75,6 @@ async function maybeRunStartupDatabaseCheck(): Promise<void> {
     typeof remote.databaseVersion === 'number' &&
     localDbVersion >= remote.databaseVersion
   ) {
-    console.info(
-      `Startup database check: local databaseVersion v${localDbVersion} >= remote v${remote.databaseVersion}, skipping prompt.`,
-    );
     return;
   }
 

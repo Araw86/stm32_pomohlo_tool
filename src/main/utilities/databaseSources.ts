@@ -289,7 +289,13 @@ export async function downloadSource(
     buffered.push({ file, body });
   }
 
-  // Stage 2 — write atomically: every file goes to .tmp first, then rename.
+  // Stage 2 — write atomically. Each file goes to a .tmp first; once every
+  // .tmp is on disk we copy them over the originals with copyFileSync (which
+  // overwrites in place on Windows, unlike rename). The previous flow used
+  // rmSync + renameSync, which had a window where the destination file did
+  // not exist — if anything failed between, the file was left missing and
+  // ensureSeeded() would happily replace it with the bundled v45 seed on the
+  // next startup, masking the new download.
   const target = liveDir(source.id);
   fs.mkdirSync(target, { recursive: true });
 
@@ -302,10 +308,12 @@ export async function downloadSource(
     }
     for (const tmp of tmpFiles) {
       const final = tmp.replace(/\.tmp$/, '');
-      if (process.platform === 'win32' && fs.existsSync(final)) {
-        fs.rmSync(final, { force: true });
+      fs.copyFileSync(tmp, final);
+      try {
+        fs.rmSync(tmp, { force: true });
+      } catch {
+        /* leftover .tmp is harmless, ignore */
       }
-      fs.renameSync(tmp, final);
     }
   } catch (err) {
     for (const tmp of tmpFiles) {
@@ -333,10 +341,12 @@ export async function downloadSource(
   const releaseTmp = `${releasePath}.tmp`;
   try {
     fs.writeFileSync(releaseTmp, JSON.stringify(releaseInfo, null, 2), 'utf8');
-    if (process.platform === 'win32' && fs.existsSync(releasePath)) {
-      fs.rmSync(releasePath, { force: true });
+    fs.copyFileSync(releaseTmp, releasePath);
+    try {
+      fs.rmSync(releaseTmp, { force: true });
+    } catch {
+      /* leftover .tmp is harmless */
     }
-    fs.renameSync(releaseTmp, releasePath);
   } catch (err) {
     try {
       if (fs.existsSync(releaseTmp)) fs.rmSync(releaseTmp, { force: true });

@@ -48,11 +48,24 @@ export function liveDir(sourceId: string = DEFAULT_SOURCE_ID): string {
 function ensureSeeded(sourceId: string): void {
   const target = liveDir(sourceId);
   const required = ['database.json', 'families.json', 'subfamilies.json', 'devices.json', 'documents.json'];
-  const allPresent = required.every((f) => fs.existsSync(path.join(target, f)));
-  if (allPresent) return;
+  const missing = required.filter((f) => !fs.existsSync(path.join(target, f)));
+  if (missing.length === 0) return;
 
   const src = bundledDir();
   if (!fs.existsSync(src)) return;
+
+  // Loud warning — if this fires on a system that already downloaded a
+  // release, it means files went missing between sessions (e.g. a crash
+  // mid-rename) and we're about to mask the downloaded data with the
+  // bundled seed. The user was likely confused about why their old
+  // databaseVersion came back; surfacing it here makes the cause obvious.
+  if (fs.existsSync(target)) {
+    console.warn(
+      `[loadDatabase] live dir ${target} is missing required files [${missing.join(
+        ', ',
+      )}], filling from bundled seed at ${src}. If you previously downloaded a newer release, those files may have been lost.`,
+    );
+  }
 
   fs.mkdirSync(target, { recursive: true });
   for (const name of fs.readdirSync(src)) {
@@ -89,6 +102,11 @@ export function loadDatabase(sourceId: string = DEFAULT_SOURCE_ID): DatabasePayl
 
   const dbFile = readJson<RawDatabaseFile>(path.join(dir, 'database.json'));
   const release = readReleaseFile(dir);
+  console.info(
+    `[loadDatabase] source=${sourceId} dir=${dir} databaseVersion=v${dbFile.databaseVersion} releaseTag=${
+      release?.releaseTag ?? '(none)'
+    }`,
+  );
   const meta: DatabaseMeta = {
     databaseVersion: dbFile.databaseVersion,
     databaseVersionCreatedAt: dbFile.databaseVersionCreatedAt,

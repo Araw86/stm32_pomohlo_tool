@@ -40,6 +40,7 @@ contextBridge.exposeInMainWorld('ipc_handlers', {
   ) => ipcRenderer.invoke('doc:openOrDownload', { docId, url, meta }),
   startDownloads: (mode: 'all' | 'missing' | 'new') =>
     ipcRenderer.invoke('downloads:start', { mode }),
+  previewDownloads: () => ipcRenderer.invoke('downloads:preview'),
   cancelDownloads: () => ipcRenderer.invoke('downloads:cancel'),
   onDownloadProgress: (cb: (data: any) => void) => {
     const listener = (_event: unknown, data: any) => cb(data);

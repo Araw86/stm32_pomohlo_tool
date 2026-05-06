@@ -1,6 +1,6 @@
 {
   "name": "stm32_pomohlo_tool",
-  "version": "0.3.1",
+  "version": "0.4.3",
   "dev": true,
   "description": "Testing example for update and stlink access to stm32",
   "author": "Radek Ripa",
@@ -38,7 +38,6 @@
     "electron-builder": "^25.1.8",
     "electron-devtools-installer": "^4.0.0",
     "electron-dl": "^3.5.0",
-    "electron-is-dev": "^3.0.1",
     "electron-reload": "^2.0.0-alpha.1",
     "electron-store": "^10.0.0",
     "electron-updater": "^6.3.9",

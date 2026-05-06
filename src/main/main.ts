@@ -3,7 +3,11 @@ const path = require('path');
 
 
 /*debug*/
-const isDev = require('electron-is-dev')
+// `electron-is-dev` was unreliable in packaged builds (sometimes reporting
+// dev mode in the installed app), which kept the auto-updater from running.
+// `app.isPackaged` is part of Electron itself and is true iff the app is
+// running from an installer / packaged bundle.
+const isDev = !app.isPackaged
 import {  installExtension,  REDUX_DEVTOOLS, REACT_DEVELOPER_TOOLS} from "electron-devtools-installer"
 
 
@@ -68,7 +72,6 @@ async function createWindow() {
 
   // Open the DevTools.
   if (isDev) {
-
     await win.loadFile('./build/renderer/index.html')
     // console.log("Open dev tools")
     win.webContents.openDevTools({ mode: "detach" });

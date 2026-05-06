@@ -29,6 +29,15 @@ export type DownloadStartResult =
   | { ok: true; summary: DownloadSummary }
   | { ok: false; message: string };
 
+export interface DownloadCounts {
+  total: number;
+  onDisk: number;
+  missing: number;
+  outdated: number;
+  toUpdate: number;
+  noRepo: boolean;
+}
+
 export interface DatabaseSourceInfo {
   id: string;
   displayName: string;
@@ -74,6 +83,7 @@ interface IpcHandlers {
     meta?: { version?: string; lastUpdate?: string; pdfCreated?: string },
   ) => Promise<OpenResult>;
   startDownloads: (mode: DownloadMode) => Promise<DownloadStartResult>;
+  previewDownloads: () => Promise<{ counts: DownloadCounts }>;
   cancelDownloads: () => Promise<{ ok: true }>;
   onDownloadProgress: (cb: (data: DownloadProgress) => void) => () => void;
   listDatabaseSources: () => Promise<{ sources: DatabaseSourceInfo[] }>;

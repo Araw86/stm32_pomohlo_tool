@@ -35,6 +35,24 @@ export interface DownloadSummary {
   errors: { docId: string; message: string }[];
 }
 
+/** Counts surfaced on the Download tab so the user can see, at a glance,
+ * how much each mode would do without having to start it. */
+export interface DownloadCounts {
+  /** Every document in the database (what 'all' mode would re-download). */
+  total: number;
+  /** PDFs already present in the repo (canonical or legacy filename). */
+  onDisk: number;
+  /** PDFs not yet in the repo (what 'missing' mode would download). */
+  missing: number;
+  /** Local PDFs whose stored version is older than the database version. */
+  outdated: number;
+  /** What 'new' mode would actually download = missing + outdated. */
+  toUpdate: number;
+  /** True when no usable repo is configured — counts beyond `total` are
+   * placeholders and the UI should display them as unavailable. */
+  noRepo: boolean;
+}
+
 let cancelRequested = false;
 let runInFlight = false;
 
@@ -89,6 +107,76 @@ function existingPdfFor(
     }
   }
   return null;
+}
+
+/** Same on-disk + version-comparison logic that runDownloads uses, but
+ * read-only: returns counts without downloading anything. Kept in lockstep
+ * with the mode === 'new' branch below so the preview matches reality. */
+export function previewDownloadCounts(
+  repoPath: string | null,
+  documents: DocumentEntry[],
+  devices: Device[],
+): DownloadCounts {
+  const total = documents.length;
+  if (!repoPath || !fs.existsSync(repoPath)) {
+    return {
+      total,
+      onDisk: 0,
+      missing: total,
+      outdated: 0,
+      toUpdate: total,
+      noRepo: true,
+    };
+  }
+
+  const onDiskIndex = buildOnDiskIndex(repoPath);
+  let onDisk = 0;
+  let missing = 0;
+  let outdated = 0;
+
+  for (const doc of documents) {
+    const existingName = existingPdfFor(doc, devices, onDiskIndex);
+    if (existingName === null) {
+      missing++;
+      continue;
+    }
+    onDisk++;
+
+    const sidecar = readSidecar(repoPath, doc.id);
+    const live = liveVersion(doc);
+    const dbCreated = live?.pdfCreated ? Date.parse(live.pdfCreated) : NaN;
+
+    let upToDate = false;
+    if (sidecar?.pdfCreated && live?.pdfCreated) {
+      const localCreated = Date.parse(sidecar.pdfCreated);
+      if (!Number.isNaN(localCreated) && !Number.isNaN(dbCreated)) {
+        upToDate = localCreated >= dbCreated;
+      }
+    }
+    if (!upToDate && !Number.isNaN(dbCreated)) {
+      try {
+        const existingPath = path.join(repoPath, existingName);
+        const mtimeMs = fs.statSync(existingPath).mtime.getTime();
+        upToDate = mtimeMs >= dbCreated;
+      } catch {
+        /* ignore — version-string fallback below */
+      }
+    }
+    if (!upToDate && sidecar && live && sidecar.version === live.version) {
+      upToDate = true;
+    }
+
+    if (!upToDate) outdated++;
+  }
+
+  return {
+    total,
+    onDisk,
+    missing,
+    outdated,
+    toUpdate: missing + outdated,
+    noRepo: false,
+  };
 }
 
 export async function runDownloads(

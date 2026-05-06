@@ -289,7 +289,13 @@ export async function downloadSource(
     buffered.push({ file, body });
   }
 
-  // Stage 2 — write atomically: every file goes to .tmp first, then rename.
+  // Stage 2 — write atomically. Each file goes to a .tmp first; once every
+  // .tmp is on disk we copy them over the originals with copyFileSync (which
+  // overwrites in place on Windows, unlike rename). The previous flow used
+  // rmSync + renameSync, which had a window where the destination file did
+  // not exist — if anything failed between, the file was left missing and
+  // ensureSeeded() would happily replace it with the bundled v45 seed on the
+  // next startup, masking the new download.
   const target = liveDir(source.id);
   fs.mkdirSync(target, { recursive: true });
 
@@ -302,10 +308,12 @@ export async function downloadSource(
     }
     for (const tmp of tmpFiles) {
       const final = tmp.replace(/\.tmp$/, '');
-      if (process.platform === 'win32' && fs.existsSync(final)) {
-        fs.rmSync(final, { force: true });
+      fs.copyFileSync(tmp, final);
+      try {
+        fs.rmSync(tmp, { force: true });
+      } catch {
+        /* leftover .tmp is harmless, ignore */
       }
-      fs.renameSync(tmp, final);
     }
   } catch (err) {
     for (const tmp of tmpFiles) {
@@ -319,6 +327,9 @@ export async function downloadSource(
   }
 
   // Persist release info next to the live db so loadDatabase can surface it.
+  // This is what tells the next-startup check "we already have this release"
+  // — if it fails, the user gets prompted again, so we throw on failure
+  // rather than swallow.
   const releaseInfo: ReleaseInfoFile = {
     releaseTag: release.tag_name,
     releaseName: release.name ?? release.tag_name,
@@ -326,14 +337,27 @@ export async function downloadSource(
     releaseHtmlUrl: release.html_url,
     downloadedAt: new Date().toISOString(),
   };
+  const releasePath = path.join(target, RELEASE_INFO_FILE);
+  const releaseTmp = `${releasePath}.tmp`;
   try {
-    fs.writeFileSync(
-      path.join(target, RELEASE_INFO_FILE),
-      JSON.stringify(releaseInfo, null, 2),
-      'utf8',
-    );
+    fs.writeFileSync(releaseTmp, JSON.stringify(releaseInfo, null, 2), 'utf8');
+    fs.copyFileSync(releaseTmp, releasePath);
+    try {
+      fs.rmSync(releaseTmp, { force: true });
+    } catch {
+      /* leftover .tmp is harmless */
+    }
   } catch (err) {
-    console.error('Failed to write release.json:', err);
+    try {
+      if (fs.existsSync(releaseTmp)) fs.rmSync(releaseTmp, { force: true });
+    } catch {
+      /* ignore cleanup errors */
+    }
+    throw new Error(
+      `Database files were written, but persisting release.json failed: ${
+        err instanceof Error ? err.message : String(err)
+      }. The next startup check would re-prompt for this release.`,
+    );
   }
 
   const dbJson = JSON.parse(

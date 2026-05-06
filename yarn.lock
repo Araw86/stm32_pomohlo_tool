@@ -2681,13 +2681,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"electron-is-dev@npm:^3.0.1":
-  version: 3.0.1
-  resolution: "electron-is-dev@npm:3.0.1"
-  checksum: 0f3bb1ebac00ab25d541a5e6b2ba9c6cdbcb0875782bffd1b0a7e8d303f837669580febfc696f1ce2b0f79cc4bc529dd71f0bf4da5d934492003c9a9b833ec22
-  languageName: node
-  linkType: hard
-
 "electron-publish@npm:25.1.7":
   version: 25.1.7
   resolution: "electron-publish@npm:25.1.7"
@@ -6010,7 +6003,6 @@ __metadata:
     electron-builder: ^25.1.8
     electron-devtools-installer: ^4.0.0
     electron-dl: ^3.5.0
-    electron-is-dev: ^3.0.1
     electron-redux: ^2.0.0
     electron-reload: ^2.0.0-alpha.1
     electron-store: ^10.0.0

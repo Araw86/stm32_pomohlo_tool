@@ -23,6 +23,26 @@ import {
   listSources,
   readReleaseInfo,
 } from './utilities/databaseSources';
+import {
+  AddDocumentInput,
+  ImportFamilyOptions,
+  addDevice,
+  addDocumentToFamily,
+  addSubfamily,
+  createCustomFamily,
+  deleteCustomFamily,
+  deleteDevice,
+  deleteDocument,
+  deleteSubfamily,
+  exportCustomFamilyZip,
+  importCustomFamilyZip,
+  listCustomFamilies,
+  loadCustomFamily,
+  renameCustomFamily,
+  renameDevice,
+  renameDocument,
+  renameSubfamily,
+} from './utilities/customFamilies';
 import { store } from './store/mainStore';
 import { setDatabase, setDatabaseError } from '../shared/redux/slices/databaseSlice';
 import {
@@ -30,6 +50,12 @@ import {
   setVersionCheckOnOpen as setVersionCheckOnOpenAction,
   setCheckDatabaseOnStartup as setCheckDatabaseOnStartupAction,
 } from '../shared/redux/slices/configSlice';
+import {
+  removeCustomFamily as removeCustomFamilyAction,
+  setCustomFamilies as setCustomFamiliesAction,
+  upsertCustomFamily as upsertCustomFamilyAction,
+} from '../shared/redux/slices/customFamiliesSlice';
+import type { CustomFamilyPayload } from '../shared/types/customFamily';
 
 let startupCheckAttempted = false;
 
@@ -131,6 +157,20 @@ async function maybeRunStartupDatabaseCheck(): Promise<void> {
   }
 }
 
+/** Read every custom family folder and push them into the renderer-visible
+ *  redux state. Called on startup and any time a custom family folder is
+ *  created/imported (so the Documents tab can render the new tree without
+ *  the user having to flip back to it). */
+function refreshCustomFamiliesInStore(): void {
+  const summaries = listCustomFamilies();
+  const payloads: CustomFamilyPayload[] = [];
+  for (const s of summaries) {
+    const p = loadCustomFamily(s.id);
+    if (p) payloads.push(p);
+  }
+  store.dispatch(setCustomFamiliesAction(payloads));
+}
+
 function fIpcHandlers(): void {
   // Hydrate persisted config into the shared redux store so the renderer sees it.
   const persisted = loadConfig();
@@ -139,6 +179,12 @@ function fIpcHandlers(): void {
   store.dispatch(
     setCheckDatabaseOnStartupAction(persisted.checkDatabaseOnStartup !== false),
   );
+  // Hydrate custom families from disk so the Documents tab can show them.
+  try {
+    refreshCustomFamiliesInStore();
+  } catch (err) {
+    console.warn('Failed to hydrate custom families:', err);
+  }
 
   ipcMain.handle('database:load', (_event: IpcMainInvokeEvent) => {
     try {
@@ -287,6 +333,294 @@ function fIpcHandlers(): void {
       }
     },
   );
+
+  /* ---------------- Custom families ---------------- */
+
+  // Generic file dialogs the panel needs to pick PDFs and zips.
+  ipcMain.handle('dialog:pickPdf', async () => {
+    const win = getActiveWindow();
+    if (!win) return { canceled: true as const, paths: [] };
+    const result = await dialog.showOpenDialog(win, {
+      title: 'Pick PDF',
+      properties: ['openFile'],
+      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+    });
+    return {
+      canceled: result.canceled,
+      paths: result.filePaths,
+    };
+  });
+
+  ipcMain.handle(
+    'dialog:saveZip',
+    async (_event, data: { defaultName: string }) => {
+      const win = getActiveWindow();
+      if (!win) return { canceled: true as const, path: '' };
+      const result = await dialog.showSaveDialog(win, {
+        title: 'Export custom family',
+        defaultPath: data.defaultName,
+        filters: [{ name: 'Zip', extensions: ['zip'] }],
+      });
+      return { canceled: result.canceled, path: result.filePath ?? '' };
+    },
+  );
+
+  ipcMain.handle('dialog:pickZip', async () => {
+    const win = getActiveWindow();
+    if (!win) return { canceled: true as const, paths: [] };
+    const result = await dialog.showOpenDialog(win, {
+      title: 'Import custom family',
+      properties: ['openFile'],
+      filters: [{ name: 'Zip', extensions: ['zip'] }],
+    });
+    return { canceled: result.canceled, paths: result.filePaths };
+  });
+
+  ipcMain.handle('customFamily:list', () => {
+    try {
+      return { ok: true as const, families: listCustomFamilies() };
+    } catch (err) {
+      return wrapErr(err);
+    }
+  });
+
+  ipcMain.handle(
+    'customFamily:load',
+    (_event, data: { id: string }) => {
+      try {
+        const payload = loadCustomFamily(data.id);
+        if (!payload) return { ok: false as const, message: `Family '${data.id}' not found.` };
+        return { ok: true as const, payload };
+      } catch (err) {
+        return wrapErr(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'customFamily:create',
+    (_event, data: { name: string }) => {
+      try {
+        const payload = createCustomFamily(data.name);
+        store.dispatch(upsertCustomFamilyAction(payload));
+        return { ok: true as const, payload };
+      } catch (err) {
+        return wrapErr(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'customFamily:rename',
+    (_event, data: { id: string; newName: string }) => {
+      try {
+        const payload = renameCustomFamily(data.id, data.newName);
+        store.dispatch(upsertCustomFamilyAction(payload));
+        return { ok: true as const, payload };
+      } catch (err) {
+        return wrapErr(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'customFamily:delete',
+    (_event, data: { id: string; deletePdfs: boolean }) => {
+      try {
+        const result = deleteCustomFamily(data.id, { deletePdfs: data.deletePdfs });
+        store.dispatch(removeCustomFamilyAction(data.id));
+        return { ok: true as const, ...result };
+      } catch (err) {
+        return wrapErr(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'customFamily:addSubfamily',
+    (_event, data: { familyId: string; name: string }) => {
+      try {
+        const payload = addSubfamily(data.familyId, data.name);
+        store.dispatch(upsertCustomFamilyAction(payload));
+        return { ok: true as const, payload };
+      } catch (err) {
+        return wrapErr(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'customFamily:renameSubfamily',
+    (_event, data: { familyId: string; subfamilyId: string; name: string }) => {
+      try {
+        const payload = renameSubfamily(data.familyId, data.subfamilyId, data.name);
+        store.dispatch(upsertCustomFamilyAction(payload));
+        return { ok: true as const, payload };
+      } catch (err) {
+        return wrapErr(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'customFamily:deleteSubfamily',
+    (
+      _event,
+      data: { familyId: string; subfamilyId: string; deletePdfs: boolean },
+    ) => {
+      try {
+        const removed = deleteSubfamily(data.familyId, data.subfamilyId, {
+          deletePdfs: data.deletePdfs,
+        });
+        // Re-load to return the updated payload.
+        const payload = loadCustomFamily(data.familyId);
+        if (payload) store.dispatch(upsertCustomFamilyAction(payload));
+        return { ok: true as const, payload, removedPdfs: removed.removedPdfs };
+      } catch (err) {
+        return wrapErr(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'customFamily:addDevice',
+    (_event, data: { familyId: string; subfamilyId: string; name: string }) => {
+      try {
+        const payload = addDevice(data.familyId, data.subfamilyId, data.name);
+        store.dispatch(upsertCustomFamilyAction(payload));
+        return { ok: true as const, payload };
+      } catch (err) {
+        return wrapErr(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'customFamily:renameDevice',
+    (_event, data: { familyId: string; deviceId: string; name: string }) => {
+      try {
+        const payload = renameDevice(data.familyId, data.deviceId, data.name);
+        store.dispatch(upsertCustomFamilyAction(payload));
+        return { ok: true as const, payload };
+      } catch (err) {
+        return wrapErr(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'customFamily:deleteDevice',
+    (
+      _event,
+      data: { familyId: string; deviceId: string; deletePdfs: boolean },
+    ) => {
+      try {
+        const removed = deleteDevice(data.familyId, data.deviceId, {
+          deletePdfs: data.deletePdfs,
+        });
+        const payload = loadCustomFamily(data.familyId);
+        if (payload) store.dispatch(upsertCustomFamilyAction(payload));
+        return { ok: true as const, payload, removedPdfs: removed.removedPdfs };
+      } catch (err) {
+        return wrapErr(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'customFamily:addDocument',
+    (_event, data: AddDocumentInput) => {
+      try {
+        const payload = addDocumentToFamily(data);
+        store.dispatch(upsertCustomFamilyAction(payload));
+        return { ok: true as const, payload };
+      } catch (err) {
+        return wrapErr(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'customFamily:renameDocument',
+    (
+      _event,
+      data: {
+        familyId: string;
+        docId: string;
+        title?: string;
+        type?: string;
+        version?: string;
+      },
+    ) => {
+      try {
+        const payload = renameDocument(data.familyId, data.docId, {
+          title: data.title,
+          type: data.type,
+          version: data.version,
+        });
+        store.dispatch(upsertCustomFamilyAction(payload));
+        return { ok: true as const, payload };
+      } catch (err) {
+        return wrapErr(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'customFamily:deleteDocument',
+    (
+      _event,
+      data: { familyId: string; docId: string; deletePdf: boolean },
+    ) => {
+      try {
+        const result = deleteDocument(data.familyId, data.docId, {
+          deletePdf: data.deletePdf,
+        });
+        const payload = loadCustomFamily(data.familyId);
+        if (payload) store.dispatch(upsertCustomFamilyAction(payload));
+        return { ok: true as const, payload, ...result };
+      } catch (err) {
+        return wrapErr(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'customFamily:export',
+    (_event, data: { id: string; savePath: string }) => {
+      try {
+        const result = exportCustomFamilyZip(data.id, data.savePath);
+        return { ok: true as const, ...result };
+      } catch (err) {
+        return wrapErr(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'customFamily:import',
+    (_event, data: { zipPath: string; renameTo?: string }) => {
+      try {
+        const result = importCustomFamilyZip(data.zipPath, {
+          renameTo: data.renameTo,
+        } as ImportFamilyOptions);
+        // Reload the imported family into the store so it shows in
+        // Documents immediately.
+        const payload = loadCustomFamily(result.familyId);
+        if (payload) store.dispatch(upsertCustomFamilyAction(payload));
+        return { ok: true as const, ...result };
+      } catch (err) {
+        return wrapErr(err);
+      }
+    },
+  );
+}
+
+function wrapErr(err: unknown): { ok: false; message: string } {
+  return {
+    ok: false,
+    message: err instanceof Error ? err.message : String(err),
+  };
 }
 
 const ipcHandlers = fIpcHandlers;

@@ -76,11 +76,38 @@ function DocPanel(): JSX.Element {
 
   const loaded = useSelector((s: RootState) => s.databaseSlice.loaded);
   const error = useSelector((s: RootState) => s.databaseSlice.error);
-  const subfamilies = useSelector((s: RootState) => s.databaseSlice.subfamilies);
-  const devices = useSelector((s: RootState) => s.databaseSlice.devices);
-  const documents = useSelector((s: RootState) => s.databaseSlice.documents);
+  const mainSubfamilies = useSelector((s: RootState) => s.databaseSlice.subfamilies);
+  const mainDevices = useSelector((s: RootState) => s.databaseSlice.devices);
+  const mainDocuments = useSelector((s: RootState) => s.databaseSlice.documents);
+  const customFamilies = useSelector(
+    (s: RootState) => s.customFamiliesSlice.families,
+  );
 
   const [filter, setFilter] = useState('');
+
+  // Flatten custom families and concatenate with the main DB, so the rest
+  // of this panel can iterate a single list. IDs in custom families are
+  // sanitised user input and don't collide with scraped ids.
+  const subfamilies = useMemo<Subfamily[]>(() => {
+    if (customFamilies.length === 0) return mainSubfamilies;
+    const out = [...mainSubfamilies];
+    for (const cf of customFamilies) out.push(...cf.subfamilies);
+    return out;
+  }, [mainSubfamilies, customFamilies]);
+
+  const devices = useMemo<Device[]>(() => {
+    if (customFamilies.length === 0) return mainDevices;
+    const out = [...mainDevices];
+    for (const cf of customFamilies) out.push(...cf.devices);
+    return out;
+  }, [mainDevices, customFamilies]);
+
+  const documents = useMemo<DocumentEntry[]>(() => {
+    if (customFamilies.length === 0) return mainDocuments;
+    const out = [...mainDocuments];
+    for (const cf of customFamilies) out.push(...cf.documents);
+    return out;
+  }, [mainDocuments, customFamilies]);
 
   const documentsById = useMemo(() => {
     const map = new Map<string, DocumentEntry>();

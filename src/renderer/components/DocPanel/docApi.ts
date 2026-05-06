@@ -72,6 +72,21 @@ export type DatabaseSourceDownloadResult =
   | { ok: true; remote: RemoteDatabaseVersion }
   | { ok: false; message: string };
 
+// Re-export so callers don't have to dig into the shared types.
+export type {
+  CustomFamilyPayload,
+  CustomFamilySummary,
+} from '../../../shared/types/customFamily';
+
+import type {
+  CustomFamilyPayload,
+  CustomFamilySummary,
+} from '../../../shared/types/customFamily';
+
+export type CustomFamilyResult<T> =
+  | ({ ok: true } & T)
+  | { ok: false; message: string };
+
 interface IpcHandlers {
   loadDatabase: () => Promise<{ status: 'ok' } | { status: 'error'; message: string }>;
   pickRepoPath: () => Promise<{ repoPath: string | null }>;
@@ -92,6 +107,116 @@ interface IpcHandlers {
   onDatabaseSourceProgress: (
     cb: (data: DatabaseSourceProgress) => void,
   ) => () => void;
+
+  // ----- File dialogs -----
+  pickPdfFile: () => Promise<{ canceled: boolean; paths: string[] }>;
+  pickZipFile: () => Promise<{ canceled: boolean; paths: string[] }>;
+  saveZipFile: (
+    defaultName: string,
+  ) => Promise<{ canceled: boolean; path: string }>;
+
+  // ----- Custom families -----
+  listCustomFamilies: () => Promise<
+    CustomFamilyResult<{ families: CustomFamilySummary[] }>
+  >;
+  loadCustomFamily: (
+    id: string,
+  ) => Promise<CustomFamilyResult<{ payload: CustomFamilyPayload }>>;
+  createCustomFamily: (
+    name: string,
+  ) => Promise<CustomFamilyResult<{ payload: CustomFamilyPayload }>>;
+  renameCustomFamily: (
+    id: string,
+    newName: string,
+  ) => Promise<CustomFamilyResult<{ payload: CustomFamilyPayload }>>;
+  deleteCustomFamily: (
+    id: string,
+    deletePdfs: boolean,
+  ) => Promise<
+    CustomFamilyResult<{ removedPdfs: string[]; missingPdfs: string[] }>
+  >;
+  addCustomSubfamily: (
+    familyId: string,
+    name: string,
+  ) => Promise<CustomFamilyResult<{ payload: CustomFamilyPayload }>>;
+  renameCustomSubfamily: (
+    familyId: string,
+    subfamilyId: string,
+    name: string,
+  ) => Promise<CustomFamilyResult<{ payload: CustomFamilyPayload }>>;
+  deleteCustomSubfamily: (
+    familyId: string,
+    subfamilyId: string,
+    deletePdfs: boolean,
+  ) => Promise<
+    CustomFamilyResult<{
+      payload: CustomFamilyPayload | null;
+      removedPdfs: string[];
+    }>
+  >;
+  addCustomDevice: (
+    familyId: string,
+    subfamilyId: string,
+    name: string,
+  ) => Promise<CustomFamilyResult<{ payload: CustomFamilyPayload }>>;
+  renameCustomDevice: (
+    familyId: string,
+    deviceId: string,
+    name: string,
+  ) => Promise<CustomFamilyResult<{ payload: CustomFamilyPayload }>>;
+  deleteCustomDevice: (
+    familyId: string,
+    deviceId: string,
+    deletePdfs: boolean,
+  ) => Promise<
+    CustomFamilyResult<{
+      payload: CustomFamilyPayload | null;
+      removedPdfs: string[];
+    }>
+  >;
+  addCustomDocument: (input: {
+    familyId: string;
+    subfamilyId: string;
+    deviceId: string;
+    sourcePath: string;
+    docId: string;
+    type: string;
+    title: string;
+    version?: string;
+  }) => Promise<CustomFamilyResult<{ payload: CustomFamilyPayload }>>;
+  renameCustomDocument: (input: {
+    familyId: string;
+    docId: string;
+    title?: string;
+    type?: string;
+    version?: string;
+  }) => Promise<CustomFamilyResult<{ payload: CustomFamilyPayload }>>;
+  deleteCustomDocument: (
+    familyId: string,
+    docId: string,
+    deletePdf: boolean,
+  ) => Promise<
+    CustomFamilyResult<{
+      payload: CustomFamilyPayload | null;
+      removedPdf: boolean;
+    }>
+  >;
+  exportCustomFamily: (
+    id: string,
+    savePath: string,
+  ) => Promise<CustomFamilyResult<{ zipPath: string; documentCount: number }>>;
+  importCustomFamily: (
+    zipPath: string,
+    renameTo?: string,
+  ) => Promise<
+    CustomFamilyResult<{
+      familyId: string;
+      familyName: string;
+      documentCount: number;
+      importedPdfs: number;
+      skippedExistingPdfs: number;
+    }>
+  >;
 }
 
 export function ipc(): IpcHandlers | undefined {

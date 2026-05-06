@@ -319,6 +319,9 @@ export async function downloadSource(
   }
 
   // Persist release info next to the live db so loadDatabase can surface it.
+  // This is what tells the next-startup check "we already have this release"
+  // — if it fails, the user gets prompted again, so we throw on failure
+  // rather than swallow.
   const releaseInfo: ReleaseInfoFile = {
     releaseTag: release.tag_name,
     releaseName: release.name ?? release.tag_name,
@@ -326,14 +329,25 @@ export async function downloadSource(
     releaseHtmlUrl: release.html_url,
     downloadedAt: new Date().toISOString(),
   };
+  const releasePath = path.join(target, RELEASE_INFO_FILE);
+  const releaseTmp = `${releasePath}.tmp`;
   try {
-    fs.writeFileSync(
-      path.join(target, RELEASE_INFO_FILE),
-      JSON.stringify(releaseInfo, null, 2),
-      'utf8',
-    );
+    fs.writeFileSync(releaseTmp, JSON.stringify(releaseInfo, null, 2), 'utf8');
+    if (process.platform === 'win32' && fs.existsSync(releasePath)) {
+      fs.rmSync(releasePath, { force: true });
+    }
+    fs.renameSync(releaseTmp, releasePath);
   } catch (err) {
-    console.error('Failed to write release.json:', err);
+    try {
+      if (fs.existsSync(releaseTmp)) fs.rmSync(releaseTmp, { force: true });
+    } catch {
+      /* ignore cleanup errors */
+    }
+    throw new Error(
+      `Database files were written, but persisting release.json failed: ${
+        err instanceof Error ? err.message : String(err)
+      }. The next startup check would re-prompt for this release.`,
+    );
   }
 
   const dbJson = JSON.parse(

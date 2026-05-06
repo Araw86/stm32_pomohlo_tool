@@ -20,6 +20,7 @@ import {
   downloadSource,
   getSource,
   listSources,
+  readReleaseInfo,
 } from './utilities/databaseSources';
 import { store } from './store/mainStore';
 import { setDatabase, setDatabaseError } from '../shared/redux/slices/databaseSlice';
@@ -52,9 +53,32 @@ async function maybeRunStartupDatabaseCheck(): Promise<void> {
     return;
   }
 
-  const localTag = store.getState().databaseSlice.meta?.releaseTag ?? null;
+  // Read the on-disk release.json directly — it's the single source of truth
+  // about which release we have locally. Falling back to redux state would
+  // miss the tag if `setDatabase` was dispatched before this function ran
+  // with a slightly stale meta.
+  const localInfo = readReleaseInfo(source.id);
+  const localTag = localInfo?.releaseTag
+    ?? store.getState().databaseSlice.meta?.releaseTag
+    ?? null;
+  const localDbVersion = store.getState().databaseSlice.meta?.databaseVersion ?? null;
+
+  // Up-to-date if either:
+  //   * the release tags match, OR
+  //   * the local databaseVersion is already >= the remote one (covers the
+  //     case where release.json failed to write but database.json did).
   if (localTag && localTag === remote.releaseTag) {
-    return; // up to date
+    return;
+  }
+  if (
+    localDbVersion !== null &&
+    typeof remote.databaseVersion === 'number' &&
+    localDbVersion >= remote.databaseVersion
+  ) {
+    console.info(
+      `Startup database check: local databaseVersion v${localDbVersion} >= remote v${remote.databaseVersion}, skipping prompt.`,
+    );
+    return;
   }
 
   const win = getActiveWindow();
@@ -63,6 +87,8 @@ async function maybeRunStartupDatabaseCheck(): Promise<void> {
   const detail = (() => {
     const lines: string[] = [];
     if (localTag) lines.push(`Local: ${localTag}`);
+    else if (localDbVersion !== null)
+      lines.push(`Local: databaseVersion v${localDbVersion} (no release tag)`);
     else lines.push('Local: bundled (no release downloaded yet)');
     lines.push(
       `Latest: ${remote.releaseTag} (published ${remote.releasePublishedAt.slice(0, 10)})`,

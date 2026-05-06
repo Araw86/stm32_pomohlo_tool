@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { IpcMainInvokeEvent } from 'electron/main';
 
 import { loadDatabase } from './utilities/loadDatabase';
@@ -185,6 +185,32 @@ function fIpcHandlers(): void {
   } catch (err) {
     console.warn('Failed to hydrate custom families:', err);
   }
+
+  // Used by the About tab. Names match what's in package.json.
+  ipcMain.handle('app:info', () => ({
+    version: app.getVersion(),
+    name: app.getName(),
+    electron: process.versions.electron,
+    chrome: process.versions.chrome,
+    node: process.versions.node,
+  }));
+
+  // Opens a URL in the user's default browser. We never let observed page
+  // content trigger this — only the About tab's hand-coded link does.
+  ipcMain.handle(
+    'shell:openExternal',
+    async (_event: IpcMainInvokeEvent, data: { url: string }) => {
+      try {
+        await shell.openExternal(data.url);
+        return { ok: true as const };
+      } catch (err) {
+        return {
+          ok: false as const,
+          message: err instanceof Error ? err.message : String(err),
+        };
+      }
+    },
+  );
 
   ipcMain.handle('database:load', (_event: IpcMainInvokeEvent) => {
     try {

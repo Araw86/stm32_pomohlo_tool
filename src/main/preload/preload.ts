@@ -27,6 +27,8 @@ contextBridge.exposeInMainWorld('versions', {
 });
 
 contextBridge.exposeInMainWorld('ipc_handlers', {
+  appInfo: () => ipcRenderer.invoke('app:info'),
+  openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', { url }),
   loadDatabase: () => ipcRenderer.invoke('database:load'),
   pickRepoPath: () => ipcRenderer.invoke('config:pickRepoPath'),
   setVersionCheckOnOpen: (enabled: boolean) =>

@@ -1,6 +1,6 @@
 {
   "name": "stm32_pomohlo_tool",
-  "version": "0.4.3",
+  "version": "0.5.0",
   "dev": true,
   "description": "Testing example for update and stlink access to stm32",
   "author": "Radek Ripa",

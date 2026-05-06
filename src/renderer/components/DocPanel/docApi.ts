@@ -87,7 +87,19 @@ export type CustomFamilyResult<T> =
   | ({ ok: true } & T)
   | { ok: false; message: string };
 
+export interface AppInfo {
+  version: string;
+  name: string;
+  electron: string;
+  chrome: string;
+  node: string;
+}
+
 interface IpcHandlers {
+  appInfo: () => Promise<AppInfo>;
+  openExternal: (
+    url: string,
+  ) => Promise<{ ok: true } | { ok: false; message: string }>;
   loadDatabase: () => Promise<{ status: 'ok' } | { status: 'error'; message: string }>;
   pickRepoPath: () => Promise<{ repoPath: string | null }>;
   setVersionCheckOnOpen: (enabled: boolean) => Promise<{ ok: true }>;

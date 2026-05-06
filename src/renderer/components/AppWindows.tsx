@@ -5,19 +5,22 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import StorageIcon from '@mui/icons-material/Storage';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import InfoIcon from '@mui/icons-material/Info';
 
 import DocPanel from './DocPanel/DocPanel';
 import SettingsPanel from './SettingsPanel/SettingsPanel';
 import DownloadPanel from './DownloadPanel/DownloadPanel';
 import DatabasePanel from './DatabasePanel/DatabasePanel';
 import CustomFamilyPanel from './CustomFamilyPanel/CustomFamilyPanel';
+import AboutPanel from './AboutPanel/AboutPanel';
 
 type TabKey =
   | 'documents'
   | 'download'
   | 'database'
   | 'customFamily'
-  | 'settings';
+  | 'settings'
+  | 'about';
 
 const SIDEBAR_WIDTH = 88;
 
@@ -62,6 +65,7 @@ function AppWindows(): JSX.Element {
             label="Custom family"
           />
           <Tab value="settings" icon={<SettingsIcon />} label="Settings" />
+          <Tab value="about" icon={<InfoIcon />} label="About" />
         </Tabs>
       </Box>
       <Box sx={{ ml: `${SIDEBAR_WIDTH}px`, flexGrow: 1, minWidth: 0 }}>
@@ -70,6 +74,7 @@ function AppWindows(): JSX.Element {
         {tab === 'database' && <DatabasePanel />}
         {tab === 'customFamily' && <CustomFamilyPanel />}
         {tab === 'settings' && <SettingsPanel />}
+        {tab === 'about' && <AboutPanel />}
       </Box>
     </Box>
   );

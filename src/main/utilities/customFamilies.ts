@@ -573,6 +573,57 @@ export function addDocumentToFamily(
   }
 }
 
+/** Link an existing document (already in this family) to another device.
+ *  Used when two devices share the same datasheet / RM / etc. — no new PDF
+ *  is copied, just metadata wires up. */
+export function linkExistingDocumentToDevice(
+  familyId: string,
+  deviceId: string,
+  docId: string,
+): CustomFamilyPayload {
+  const payload = loadCustomFamily(familyId);
+  if (!payload) throw new Error(`Family '${familyId}' not found.`);
+  const dev = payload.devices.find((d) => d.id === deviceId);
+  if (!dev) throw new Error(`Device '${deviceId}' not found.`);
+  const doc = payload.documents.find((d) => d.id === docId);
+  if (!doc) {
+    throw new Error(
+      `Document '${docId}' is not part of this family. Add it first via "Add new PDF".`,
+    );
+  }
+
+  // Already attached?
+  const isAlreadyDatasheet = dev.datasheetId === docId;
+  const isInDocList = (dev.documentIds ?? []).includes(docId);
+  if (isAlreadyDatasheet || isInDocList) {
+    throw new Error(`'${docId}' is already attached to '${deviceId}'.`);
+  }
+
+  // Wire up. Datasheet docs go on `datasheetId` when free, otherwise into
+  // documentIds (matches the addDocumentToFamily rule so the chip surfaces
+  // in the right place for the second device).
+  if (doc.type === 'Datasheet' && !dev.datasheetId) {
+    dev.datasheetId = docId;
+  } else {
+    dev.documentIds = dev.documentIds ?? [];
+    dev.documentIds.push(docId);
+  }
+
+  // Make sure this device's subfamily is also recorded on the document so
+  // the Documents tab can find it from any subfamily it now lives under.
+  if (!doc.subfamilyIds.includes(dev.subfamilyId)) {
+    doc.subfamilyIds.push(dev.subfamilyId);
+  }
+  // And the subfamily's documentIds bag.
+  const sub = payload.subfamilies.find((s) => s.id === dev.subfamilyId);
+  if (sub) {
+    sub.documentIds = sub.documentIds ?? [];
+    if (!sub.documentIds.includes(docId)) sub.documentIds.push(docId);
+  }
+
+  return saveCustomFamily(payload);
+}
+
 export function renameDocument(
   familyId: string,
   docId: string,

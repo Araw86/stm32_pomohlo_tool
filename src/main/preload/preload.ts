@@ -128,6 +128,12 @@ contextBridge.exposeInMainWorld('ipc_handlers', {
     title: string;
     version?: string;
   }) => ipcRenderer.invoke('customFamily:addDocument', input),
+  linkCustomDocument: (familyId: string, deviceId: string, docId: string) =>
+    ipcRenderer.invoke('customFamily:linkDocument', {
+      familyId,
+      deviceId,
+      docId,
+    }),
   renameCustomDocument: (input: {
     familyId: string;
     docId: string;

@@ -196,6 +196,11 @@ interface IpcHandlers {
     title: string;
     version?: string;
   }) => Promise<CustomFamilyResult<{ payload: CustomFamilyPayload }>>;
+  linkCustomDocument: (
+    familyId: string,
+    deviceId: string,
+    docId: string,
+  ) => Promise<CustomFamilyResult<{ payload: CustomFamilyPayload }>>;
   renameCustomDocument: (input: {
     familyId: string;
     docId: string;

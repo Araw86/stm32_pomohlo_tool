@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Box,
   Button,
@@ -9,6 +9,8 @@ import {
   IconButton,
   MenuItem,
   Stack,
+  Tab,
+  Tabs,
   TextField,
   Typography,
 } from '@mui/material';
@@ -44,21 +46,42 @@ function deriveTitle(filePath: string): string {
   return base.replace(/\.pdf$/i, '').replace(/_/g, ' ').trim();
 }
 
+type Mode = 'new' | 'link';
+
 export function AddDocumentDialog(props: {
   open: boolean;
   familyId: string;
   subfamilyId: string;
   deviceId: string;
+  /** Full family payload — used to populate the "link existing" picker
+   *  and to filter out docs the device is already attached to. */
+  payload: CustomFamilyPayload;
   onCancel: () => void;
   onAdded: (payload: CustomFamilyPayload) => void;
   setError: (s: string | null) => void;
 }): JSX.Element {
+  const [mode, setMode] = useState<Mode>('new');
+
+  // ---- "new PDF" state ----
   const [sourcePath, setSourcePath] = useState('');
   const [docId, setDocId] = useState('');
   const [type, setType] = useState<string>('Datasheet');
   const [title, setTitle] = useState('');
   const [version, setVersion] = useState('1.0');
+
+  // ---- "link existing" state ----
+  const [pickedDocId, setPickedDocId] = useState<string>('');
+
   const [submitting, setSubmitting] = useState(false);
+
+  // Existing docs in this family that are NOT yet attached to this device.
+  const linkableDocs = useMemo(() => {
+    const dev = props.payload.devices.find((d) => d.id === props.deviceId);
+    const alreadyOnDevice = new Set<string>();
+    if (dev?.datasheetId) alreadyOnDevice.add(dev.datasheetId);
+    for (const id of dev?.documentIds ?? []) alreadyOnDevice.add(id);
+    return props.payload.documents.filter((d) => !alreadyOnDevice.has(d.id));
+  }, [props.payload, props.deviceId]);
 
   const handlePick = async () => {
     const res = await ipc()?.pickPdfFile();
@@ -73,23 +96,33 @@ export function AddDocumentDialog(props: {
   };
 
   const canSubmit =
-    sourcePath.length > 0 && docId.trim().length > 0 && !submitting;
+    !submitting &&
+    (mode === 'new'
+      ? sourcePath.length > 0 && docId.trim().length > 0
+      : pickedDocId.length > 0);
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
     props.setError(null);
     setSubmitting(true);
     try {
-      const res = await ipc()?.addCustomDocument({
-        familyId: props.familyId,
-        subfamilyId: props.subfamilyId,
-        deviceId: props.deviceId,
-        sourcePath,
-        docId: docId.trim(),
-        type,
-        title: title.trim(),
-        version: version.trim() || '1.0',
-      });
+      const res =
+        mode === 'new'
+          ? await ipc()?.addCustomDocument({
+              familyId: props.familyId,
+              subfamilyId: props.subfamilyId,
+              deviceId: props.deviceId,
+              sourcePath,
+              docId: docId.trim(),
+              type,
+              title: title.trim(),
+              version: version.trim() || '1.0',
+            })
+          : await ipc()?.linkCustomDocument(
+              props.familyId,
+              props.deviceId,
+              pickedDocId,
+            );
       if (!res) return;
       if (res.ok === false) {
         props.setError(res.message);
@@ -105,64 +138,112 @@ export function AddDocumentDialog(props: {
     <Dialog open={props.open} onClose={props.onCancel} fullWidth maxWidth="sm">
       <DialogTitle>Add document to {props.deviceId}</DialogTitle>
       <DialogContent>
-        <Stack spacing={2} sx={{ mt: 1 }}>
-          <Stack direction="row" spacing={1} alignItems="center">
+        <Tabs
+          value={mode}
+          onChange={(_, m: Mode) => setMode(m)}
+          sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}
+        >
+          <Tab value="new" label="Add new PDF" />
+          <Tab
+            value="link"
+            label={`Link existing (${linkableDocs.length})`}
+            disabled={linkableDocs.length === 0}
+          />
+        </Tabs>
+
+        {mode === 'new' ? (
+          <Stack spacing={2}>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <TextField
+                label="Source PDF"
+                size="small"
+                fullWidth
+                value={sourcePath}
+                placeholder="Pick a .pdf file..."
+                InputProps={{ readOnly: true }}
+              />
+              <IconButton onClick={handlePick} title="Pick file">
+                <FolderOpenIcon />
+              </IconButton>
+            </Stack>
             <TextField
-              label="Source PDF"
+              label="Document id"
               size="small"
               fullWidth
-              value={sourcePath}
-              placeholder="Pick a .pdf file..."
-              InputProps={{ readOnly: true }}
+              value={docId}
+              onChange={(e) => setDocId(e.target.value)}
+              helperText="Used as the filename in the local repository (id.pdf)."
             />
-            <IconButton onClick={handlePick} title="Pick file">
-              <FolderOpenIcon />
-            </IconButton>
+            <TextField
+              label="Type"
+              size="small"
+              select
+              fullWidth
+              value={type}
+              onChange={(e) => setType(e.target.value)}
+            >
+              {DOC_TYPES.map((t) => (
+                <MenuItem key={t} value={t}>
+                  {t}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              label="Title / description"
+              size="small"
+              fullWidth
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+            <TextField
+              label="Version label"
+              size="small"
+              fullWidth
+              value={version}
+              onChange={(e) => setVersion(e.target.value)}
+              helperText="Shown next to the document. Defaults to 1.0."
+            />
+            <Box>
+              <Typography variant="caption" color="text.secondary">
+                The PDF will be copied to the repository as{' '}
+                <strong>{docId.trim() || '<id>'}.pdf</strong>.
+              </Typography>
+            </Box>
           </Stack>
-          <TextField
-            label="Document id"
-            size="small"
-            fullWidth
-            value={docId}
-            onChange={(e) => setDocId(e.target.value)}
-            helperText="Used as the filename in the local repository (id.pdf)."
-          />
-          <TextField
-            label="Type"
-            size="small"
-            select
-            fullWidth
-            value={type}
-            onChange={(e) => setType(e.target.value)}
-          >
-            {DOC_TYPES.map((t) => (
-              <MenuItem key={t} value={t}>
-                {t}
-              </MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            label="Title / description"
-            size="small"
-            fullWidth
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-          <TextField
-            label="Version label"
-            size="small"
-            fullWidth
-            value={version}
-            onChange={(e) => setVersion(e.target.value)}
-            helperText="Shown next to the document. Defaults to 1.0."
-          />
-          <Box>
-            <Typography variant="caption" color="text.secondary">
-              The PDF will be copied to the repository as{' '}
-              <strong>{docId.trim() || '<id>'}.pdf</strong>.
+        ) : (
+          <Stack spacing={2}>
+            <Typography variant="body2" color="text.secondary">
+              Attach a document already in this family to{' '}
+              <strong>{props.deviceId}</strong>. The PDF stays where it is —
+              only the device is wired to it.
             </Typography>
-          </Box>
-        </Stack>
+            <TextField
+              label="Document"
+              size="small"
+              select
+              fullWidth
+              value={pickedDocId}
+              onChange={(e) => setPickedDocId(e.target.value)}
+              helperText={
+                linkableDocs.length === 0
+                  ? 'No other documents in this family.'
+                  : 'Pick from documents already added to this family.'
+              }
+            >
+              {linkableDocs.map((d) => (
+                <MenuItem key={d.id} value={d.id}>
+                  <Stack direction="row" spacing={1} alignItems="baseline">
+                    <strong>{d.id}</strong>
+                    <Typography variant="caption" color="text.secondary">
+                      {d.type}
+                      {d.title ? ` — ${d.title}` : ''}
+                    </Typography>
+                  </Stack>
+                </MenuItem>
+              ))}
+            </TextField>
+          </Stack>
+        )}
       </DialogContent>
       <DialogActions>
         <Button onClick={props.onCancel}>Cancel</Button>
@@ -171,10 +252,9 @@ export function AddDocumentDialog(props: {
           onClick={handleSubmit}
           disabled={!canSubmit}
         >
-          Add
+          {mode === 'new' ? 'Add' : 'Link'}
         </Button>
       </DialogActions>
     </Dialog>
   );
 }
-

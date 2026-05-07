@@ -36,6 +36,7 @@ import {
   deleteSubfamily,
   exportCustomFamilyZip,
   importCustomFamilyZip,
+  linkExistingDocumentToDevice,
   listCustomFamilies,
   loadCustomFamily,
   renameCustomFamily,
@@ -558,6 +559,26 @@ function fIpcHandlers(): void {
     (_event, data: AddDocumentInput) => {
       try {
         const payload = addDocumentToFamily(data);
+        store.dispatch(upsertCustomFamilyAction(payload));
+        return { ok: true as const, payload };
+      } catch (err) {
+        return wrapErr(err);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'customFamily:linkDocument',
+    (
+      _event,
+      data: { familyId: string; deviceId: string; docId: string },
+    ) => {
+      try {
+        const payload = linkExistingDocumentToDevice(
+          data.familyId,
+          data.deviceId,
+          data.docId,
+        );
         store.dispatch(upsertCustomFamilyAction(payload));
         return { ok: true as const, payload };
       } catch (err) {

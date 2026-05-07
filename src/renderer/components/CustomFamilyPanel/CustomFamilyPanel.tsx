@@ -735,6 +735,7 @@ function CustomFamilyPanel(): JSX.Element {
           familyId={payload.family.id}
           subfamilyId={addDoc.subId}
           deviceId={addDoc.deviceId}
+          payload={payload}
           onCancel={() => setAddDoc(null)}
           onAdded={(updated) => {
             setAddDoc(null);

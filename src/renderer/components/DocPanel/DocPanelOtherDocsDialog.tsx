@@ -75,8 +75,26 @@ function DocPanelOtherDocsDialog({
   const [search, setSearch] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const allDevices = useSelector((s: RootState) => s.databaseSlice.devices);
-  const documents = useSelector((s: RootState) => s.databaseSlice.documents);
+  const mainDevices = useSelector((s: RootState) => s.databaseSlice.devices);
+  const mainDocuments = useSelector((s: RootState) => s.databaseSlice.documents);
+  const customFamilies = useSelector(
+    (s: RootState) => s.customFamiliesSlice.families,
+  );
+
+  // Merge main + custom so custom-family devices and their documents are
+  // visible here too. (Mirrors what DocPanel does when building rows.)
+  const allDevices = useMemo<Device[]>(() => {
+    if (customFamilies.length === 0) return mainDevices;
+    const out = [...mainDevices];
+    for (const cf of customFamilies) out.push(...cf.devices);
+    return out;
+  }, [mainDevices, customFamilies]);
+  const documents = useMemo<DocumentEntry[]>(() => {
+    if (customFamilies.length === 0) return mainDocuments;
+    const out = [...mainDocuments];
+    for (const cf of customFamilies) out.push(...cf.documents);
+    return out;
+  }, [mainDocuments, customFamilies]);
 
   const subfamilyDevices = useMemo(
     () => allDevices.filter((d) => d.subfamilyId === subfamily.id),

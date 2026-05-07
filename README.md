@@ -1,15 +1,72 @@
 # Document opener for STM32
 
+Download [here](https://github.com/Araw86/stm32_pomohlo_tool/releases)
+
+
 ## Tool
 
 Tool showing STM32/SM8 device lines. And their documentations.
 On click if document is present he will opens it
 
-![23_01_06_268](https://user-images.githubusercontent.com/48834492/210958095-11756a88-0980-409b-823b-008045d37d25.png)
+<img width="1059" height="723" alt="main_screen" src="https://github.com/user-attachments/assets/9e0339da-e3fb-47fb-b7d4-b1631908654e" />
 
-## Configuration
 
-Tool need a location for repositry where to download datasheets.
+## Settings
+
+<img width="1059" height="723" alt="settings" src="https://github.com/user-attachments/assets/e8c855d7-de74-49ba-a6fb-2e000f655d37" />
+
+### Set repositroy path
+
+Tool need a location for repositry where to download datasheets.Adn where to look for them
+
+### Document version check
+
+If you want to pen document toll will check if new version is available and offers to download it
+
+### Document database checl
+
+At startup tool offers download new database
+
+## Databse
+
+<img width="1059" height="723" alt="settings" src="https://github.com/user-attachments/assets/77d84dfe-64ab-410c-bceb-763b86e4f661" />
+
+Allow to see which device database version is used. 
+You can manully trigger download.
+
+## Download
+
+<img width="1059" height="723" alt="download" src="https://github.com/user-attachments/assets/8be70548-98fc-490d-945f-1fb824b15e0c" />
+
+Tool check the documents in you reopsitroy and offers to download them
+
+### download all documents
+
+Trigger full download aof all documents.
+
+### Download missing docuemtts
+
+Download only documents which are missing
+
+### Download new documents
+
+Download new version of documetns on disk. Beckups the old ones. 
+
+## Custom family
+
+<img width="1059" height="723" alt="custom_family" src="https://github.com/user-attachments/assets/fc7f9681-fb0a-47f7-9d7d-34b901530efb" />
+
+Allow to create your own device family. For STM32 or other devices. 
+
+All documents need to be local. Tool will move them to his repositroy
+
+Export/import. Tool can export/import the custom famili in zip. where is family description in json. And all document pdf files. 
+
+
+# Feedback
+
+feedback and problems pelase write into [Issues](https://github.com/Araw86/stm32_pomohlo_tool/issues) section
+
 
 <!-- ## Configuration
 

@@ -35,27 +35,36 @@ const MODES: ModeDef[] = [
     id: 'all',
     title: 'Download all documents',
     description:
-      'Re-download every document, overwriting the local copy. Use this to refresh the whole library.',
+      'Re-download every document and every board PDF schematic, overwriting the local copy. Use this to refresh the whole library.',
     icon: <DownloadIcon />,
   },
   {
     id: 'missing',
     title: 'Download missing documents',
     description:
-      'Download only documents that are not yet in the local repository. Existing files are left alone.',
+      'Download only documents and board PDF schematics that are not yet in the local repository. Existing files are left alone.',
     icon: <DownloadingIcon />,
   },
   {
     id: 'new',
     title: 'Download new versions',
     description:
-      'For each local document, compare its stored version against the database. If a newer version exists, move the old PDF to "backup/<id>_v<old>.pdf" and download the new one.',
+      'For each local document or schematic, compare its stored version against the database. If a newer version exists, move the old PDF to "backup/<id>_v<old>.pdf" and download the new one.',
     icon: <UpdateIcon />,
   },
 ];
 
 type ChipColor = 'default' | 'primary' | 'success' | 'warning';
 type ChipVariant = 'filled' | 'outlined';
+
+/** Suffix that breaks down the docs/schematics split — only added when
+ *  there's actually a non-zero schematic count, so the chip stays simple
+ *  for older databases that don't ship boards.json. */
+function schematicsSuffix(counts: DownloadCounts): string {
+  if (counts.schematicsTotal === 0) return '';
+  const docsTotal = counts.total - counts.schematicsTotal;
+  return ` (${docsTotal} docs + ${counts.schematicsTotal} schematics)`;
+}
 
 function countLabelFor(
   mode: DownloadMode,
@@ -65,13 +74,21 @@ function countLabelFor(
   if (counts.noRepo) {
     // 'all' mode doesn't need the repo to be configured to know its count.
     if (mode === 'all') {
-      return { text: `${counts.total} docs`, color: 'primary', variant: 'outlined' };
+      return {
+        text: `${counts.total} files${schematicsSuffix(counts)}`,
+        color: 'primary',
+        variant: 'outlined',
+      };
     }
     return { text: 'no repo', color: 'default', variant: 'outlined' };
   }
   switch (mode) {
     case 'all':
-      return { text: `${counts.total} docs`, color: 'primary', variant: 'outlined' };
+      return {
+        text: `${counts.total} files${schematicsSuffix(counts)}`,
+        color: 'primary',
+        variant: 'outlined',
+      };
     case 'missing':
       return counts.missing === 0
         ? { text: 'nothing missing', color: 'success', variant: 'outlined' }

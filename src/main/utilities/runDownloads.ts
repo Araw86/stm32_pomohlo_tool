@@ -10,8 +10,48 @@ import {
   readSidecar,
   writeSidecar,
 } from './sidecar';
-import type { Device, DocumentEntry } from '../../shared/types/database';
+import type { Board, Device, DocumentEntry } from '../../shared/types/database';
 import { liveVersion } from '../../shared/types/database';
+
+/** Turn the PDF schematics carried by `boards` into DocumentEntry-shaped
+ * records so the existing all/missing/new download path can handle them
+ * with no special-casing. ZIP schematics are skipped — those are
+ * "open-in-browser only" by design.
+ *
+ * Schematic ids (e.g. "MB1136") tend to be reused across multiple boards;
+ * we dedupe by id so the same PDF isn't downloaded twice in one run. */
+export function boardPdfSchematicsAsDocuments(
+  boards: Board[],
+): DocumentEntry[] {
+  const byId = new Map<string, DocumentEntry>();
+  for (const board of boards) {
+    for (const sch of board.schematics) {
+      if (sch.format?.toUpperCase() !== 'PDF') continue;
+      if (!sch.url) continue;
+      if (byId.has(sch.id)) continue;
+      byId.set(sch.id, {
+        id: sch.id,
+        // Schematics aren't owned by a subfamily; leave empty so DocPanel
+        // never picks them up as regular subfamily docs.
+        subfamilyIds: [],
+        // Custom string keeps these out of KIND_BY_DOCTYPE / "Other docs"
+        // and prevents the legacy per-device datasheet name lookup.
+        type: 'BoardSchematic',
+        title: sch.title,
+        url: sch.url,
+        versions: [
+          {
+            version: sch.version ?? '1.0',
+            lastUpdate: sch.lastUpdate,
+            pdfCreated: sch.pdfCreated,
+            pdfBytes: sch.pdfBytes,
+          },
+        ],
+      });
+    }
+  }
+  return Array.from(byId.values());
+}
 
 export type DownloadMode = 'all' | 'missing' | 'new';
 
@@ -38,7 +78,8 @@ export interface DownloadSummary {
 /** Counts surfaced on the Download tab so the user can see, at a glance,
  * how much each mode would do without having to start it. */
 export interface DownloadCounts {
-  /** Every document in the database (what 'all' mode would re-download). */
+  /** Every document in the database (what 'all' mode would re-download).
+   * Includes board PDF schematics. */
   total: number;
   /** PDFs already present in the repo (canonical or legacy filename). */
   onDisk: number;
@@ -51,6 +92,8 @@ export interface DownloadCounts {
   /** True when no usable repo is configured — counts beyond `total` are
    * placeholders and the UI should display them as unavailable. */
   noRepo: boolean;
+  /** Subset of `total` that are board PDF schematics (versus regular docs). */
+  schematicsTotal: number;
 }
 
 let cancelRequested = false;
@@ -111,13 +154,19 @@ function existingPdfFor(
 
 /** Same on-disk + version-comparison logic that runDownloads uses, but
  * read-only: returns counts without downloading anything. Kept in lockstep
- * with the mode === 'new' branch below so the preview matches reality. */
+ * with the mode === 'new' branch below so the preview matches reality.
+ *
+ * `documents` should already include any board PDF schematics the caller
+ * wants counted (use `boardPdfSchematicsAsDocuments`). */
 export function previewDownloadCounts(
   repoPath: string | null,
   documents: DocumentEntry[],
   devices: Device[],
 ): DownloadCounts {
   const total = documents.length;
+  const schematicsTotal = documents.filter(
+    (d) => d.type === 'BoardSchematic',
+  ).length;
   if (!repoPath || !fs.existsSync(repoPath)) {
     return {
       total,
@@ -126,6 +175,7 @@ export function previewDownloadCounts(
       outdated: 0,
       toUpdate: total,
       noRepo: true,
+      schematicsTotal,
     };
   }
 
@@ -176,6 +226,7 @@ export function previewDownloadCounts(
     outdated,
     toUpdate: missing + outdated,
     noRepo: false,
+    schematicsTotal,
   };
 }
 

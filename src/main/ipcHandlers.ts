@@ -10,6 +10,7 @@ import {
 } from './utilities/docDownload';
 import {
   DownloadMode,
+  boardPdfSchematicsAsDocuments,
   isRunning,
   previewDownloadCounts,
   requestCancel,
@@ -278,8 +279,15 @@ function fIpcHandlers(): void {
       const state = store.getState();
       const documents = state.databaseSlice.documents;
       const devices = state.databaseSlice.devices;
+      // Append PDF board schematics so they ride the same all/missing/new
+      // logic. ZIP schematics are intentionally excluded — those open in
+      // the browser only.
+      const schematicsAsDocs = boardPdfSchematicsAsDocuments(
+        state.databaseSlice.boards,
+      );
+      const allDocs = [...documents, ...schematicsAsDocs];
       try {
-        const summary = await runDownloads(data.mode, documents, devices, (p) => {
+        const summary = await runDownloads(data.mode, allDocs, devices, (p) => {
           if (!event.sender.isDestroyed()) {
             event.sender.send('downloads:progress', p);
           }
@@ -295,9 +303,12 @@ function fIpcHandlers(): void {
   ipcMain.handle('downloads:preview', () => {
     const { repoPath } = loadConfig();
     const state = store.getState();
+    const schematicsAsDocs = boardPdfSchematicsAsDocuments(
+      state.databaseSlice.boards,
+    );
     const counts = previewDownloadCounts(
       repoPath ?? null,
-      state.databaseSlice.documents,
+      [...state.databaseSlice.documents, ...schematicsAsDocs],
       state.databaseSlice.devices,
     );
     return { counts };

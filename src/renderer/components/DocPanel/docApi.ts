@@ -36,6 +36,9 @@ export interface DownloadCounts {
   outdated: number;
   toUpdate: number;
   noRepo: boolean;
+  /** Subset of `total` that are PDF board schematics. Surfaces in the UI
+   *  so the user knows board files are part of the bulk download. */
+  schematicsTotal: number;
 }
 
 export interface DatabaseSourceInfo {

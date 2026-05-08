@@ -38,6 +38,9 @@ const DB_FILES = [
   'subfamilies.json',
   'devices.json',
   'documents.json',
+  // Optional: present from databaseStructure 2 onward. Older dumps don't
+  // include it and the loader tolerates its absence.
+  'boards.json',
   'catalog.json',
 ] as const;
 

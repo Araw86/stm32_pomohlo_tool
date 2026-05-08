@@ -29,7 +29,44 @@ export interface Device {
   datasheetId?: string;
   /** Doc IDs scraped from this device's own documentation tab. */
   documentIds?: string[];
+  /** Board IDs (matching `Board.id`) compatible with this device, populated
+   * by the boards crawl. Added in databaseStructure 2. */
+  boardIds?: string[];
   /** ISO timestamp of the last deep-mode scrape for this device. */
+  scrapedAt?: string;
+  /** ISO timestamp of the last boards-crawl pass for this device. */
+  boardsScrapedAt?: string;
+}
+
+/** A single schematic file attached to a board. PDFs can be downloaded
+ * locally; ZIPs are only opened in the user's browser. */
+export interface BoardSchematic {
+  id: string;
+  title: string;
+  version?: string;
+  /** ISO date "YYYY-MM-DD". */
+  lastUpdate?: string;
+  url: string;
+  /** Always upper-cased by the scraper. */
+  format: 'PDF' | 'ZIP' | string;
+  /** PDF only. */
+  pdfBytes?: number;
+  /** PDF only — ISO timestamp from the PDF /CreationDate metadata. */
+  pdfCreated?: string;
+}
+
+/** ST evaluation board (Nucleo / Discovery / etc.) compatible with one or
+ * more devices. Added in databaseStructure 2. */
+export interface Board {
+  id: string;
+  name: string;
+  /** "Nucleo", "Discovery", "Other", … kept open for new types. */
+  type: string;
+  /** Canonical product page on st.com. */
+  url: string;
+  /** Devices the scraper says this board supports. */
+  deviceIds: string[];
+  schematics: BoardSchematic[];
   scrapedAt?: string;
 }
 
@@ -64,6 +101,12 @@ export interface DatabaseMeta {
   databaseVersion: number;
   /** ISO timestamp at which `databaseVersion` was last bumped. */
   databaseVersionCreatedAt: string;
+  /** Schema-version of the JSON files. Bumped when fields/tables are
+   * added or renamed. The app refuses to load a structure newer than
+   * SUPPORTED_DATABASE_STRUCTURE in loadDatabase.ts. Absent on v1 dumps. */
+  databaseStructure?: number;
+  /** ISO timestamp at which `databaseStructure` was last bumped. */
+  databaseStructureCreatedAt?: string;
   /** ISO timestamp of the last full scrape. */
   scrapedAt: string;
   /** Identifier of the source the loaded data came from (e.g. 'main'). */
@@ -85,6 +128,8 @@ export interface DatabasePayload {
   subfamilies: Subfamily[];
   documents: DocumentEntry[];
   devices: Device[];
+  /** Empty array for v1 databases (boards.json absent). */
+  boards: Board[];
   meta: DatabaseMeta;
 }
 

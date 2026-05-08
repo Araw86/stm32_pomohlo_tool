@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { app } from 'electron';
 import type {
+  Board,
   DatabaseMeta,
   DatabasePayload,
   DocumentEntry,
@@ -14,7 +15,15 @@ interface RawDatabaseFile {
   scrapedAt: string;
   databaseVersion: number;
   databaseVersionCreatedAt: string;
+  /** Schema version. Absent on legacy v1 dumps; bumped to 2 when boards
+   * were added. The app refuses to load anything newer than what it knows. */
+  databaseStructure?: number;
+  databaseStructureCreatedAt?: string;
 }
+
+/** Highest schema version this build understands. Bump together with any
+ *  loader change that consumes a new field. */
+export const SUPPORTED_DATABASE_STRUCTURE = 2;
 
 interface RawReleaseInfoFile {
   releaseTag: string;
@@ -111,10 +120,26 @@ export function loadDatabase(sourceId: string = DEFAULT_SOURCE_ID): DatabasePayl
   const dir = liveDir(sourceId);
 
   const dbFile = readJson<RawDatabaseFile>(path.join(dir, 'database.json'));
+
+  // Refuse to load a future schema version — fields and relations may have
+  // changed in ways this build can't interpret. Older dumps (no field, or
+  // a value <= SUPPORTED) are fine: we just won't surface fields the older
+  // dump didn't have.
+  if (
+    typeof dbFile.databaseStructure === 'number' &&
+    dbFile.databaseStructure > SUPPORTED_DATABASE_STRUCTURE
+  ) {
+    throw new Error(
+      `This database uses structure v${dbFile.databaseStructure}, but this build of stm32_pomohlo_tool only understands up to v${SUPPORTED_DATABASE_STRUCTURE}. Please update the application before downloading this release.`,
+    );
+  }
+
   const release = readReleaseFile(dir);
   const meta: DatabaseMeta = {
     databaseVersion: dbFile.databaseVersion,
     databaseVersionCreatedAt: dbFile.databaseVersionCreatedAt,
+    databaseStructure: dbFile.databaseStructure,
+    databaseStructureCreatedAt: dbFile.databaseStructureCreatedAt,
     scrapedAt: dbFile.scrapedAt,
     sourceId,
     sourceName: sourceId === DEFAULT_SOURCE_ID ? DEFAULT_SOURCE_NAME : sourceId,
@@ -124,11 +149,24 @@ export function loadDatabase(sourceId: string = DEFAULT_SOURCE_ID): DatabasePayl
     downloadedAt: release?.downloadedAt,
   };
 
+  // boards.json was added in databaseStructure 2. Tolerate its absence:
+  // older dumps simply have no boards data, and the UI hides the button.
+  let boards: Board[] = [];
+  const boardsFile = path.join(dir, 'boards.json');
+  if (fs.existsSync(boardsFile)) {
+    try {
+      boards = readJson<Board[]>(boardsFile);
+    } catch (err) {
+      console.warn('Failed to parse boards.json (continuing without):', err);
+    }
+  }
+
   return {
     families: readJson<Family[]>(path.join(dir, 'families.json')),
     subfamilies: readJson<Subfamily[]>(path.join(dir, 'subfamilies.json')),
     documents: readJson<DocumentEntry[]>(path.join(dir, 'documents.json')),
     devices: readJson<Device[]>(path.join(dir, 'devices.json')),
+    boards,
     meta,
   };
 }

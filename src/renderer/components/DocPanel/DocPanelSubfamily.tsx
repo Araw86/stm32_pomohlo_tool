@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Card,
   CardContent,
@@ -9,9 +9,13 @@ import {
   Typography,
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
+import DeveloperBoardIcon from '@mui/icons-material/DeveloperBoard';
+import { useSelector } from 'react-redux';
+import type { RootState } from '../../store/storeRenderer';
 import type { Device, DocumentEntry, Subfamily } from '../../../shared/types/database';
 import DocPanelDocGroup from './DocPanelDocGroup';
 import DocPanelOtherDocsDialog from './DocPanelOtherDocsDialog';
+import DocPanelBoardsDialog from './DocPanelBoardsDialog';
 import { DocKind } from './docKinds';
 
 export interface DocGroup {
@@ -29,6 +33,25 @@ interface Props {
 
 function DocPanelSubfamily({ subfamily, groups, totalDevices }: Props): JSX.Element {
   const [otherOpen, setOtherOpen] = useState(false);
+  const [boardsOpen, setBoardsOpen] = useState(false);
+
+  // Hide the Boards button if there are no boards relevant to this subfamily
+  // (older databases without boards.json, or subfamilies that just don't
+  // have a Nucleo / Disco / Eval board associated).
+  const allDevices = useSelector((s: RootState) => s.databaseSlice.devices);
+  const allBoards = useSelector((s: RootState) => s.databaseSlice.boards);
+  const boardCount = useMemo(() => {
+    if (allBoards.length === 0) return 0;
+    const subfamilyDeviceIds = new Set(
+      allDevices.filter((d) => d.subfamilyId === subfamily.id).map((d) => d.id),
+    );
+    if (subfamilyDeviceIds.size === 0) return 0;
+    let n = 0;
+    for (const b of allBoards) {
+      if (b.deviceIds.some((id) => subfamilyDeviceIds.has(id))) n++;
+    }
+    return n;
+  }, [allDevices, allBoards, subfamily.id]);
 
   return (
     <Grid item xs={12} md={10} lg={8}>
@@ -41,6 +64,19 @@ function DocPanelSubfamily({ subfamily, groups, totalDevices }: Props): JSX.Elem
             <Typography variant="caption" color="text.secondary" sx={{ flexGrow: 1 }}>
               {totalDevices} device{totalDevices === 1 ? '' : 's'}
             </Typography>
+            {boardCount > 0 && (
+              <Tooltip
+                title={`Compatible boards (${boardCount}) and their schematics`}
+              >
+                <IconButton
+                  size="small"
+                  aria-label="boards"
+                  onClick={() => setBoardsOpen(true)}
+                >
+                  <DeveloperBoardIcon />
+                </IconButton>
+              </Tooltip>
+            )}
             <Tooltip title="Other documentation (application notes, technical notes, …)">
               <IconButton
                 size="small"
@@ -74,6 +110,11 @@ function DocPanelSubfamily({ subfamily, groups, totalDevices }: Props): JSX.Elem
         subfamily={subfamily}
         open={otherOpen}
         onClose={() => setOtherOpen(false)}
+      />
+      <DocPanelBoardsDialog
+        subfamily={subfamily}
+        open={boardsOpen}
+        onClose={() => setBoardsOpen(false)}
       />
     </Grid>
   );

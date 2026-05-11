@@ -1,4 +1,4 @@
-import { app, session, dialog, BrowserWindow, Menu, Notification, MessageBoxOptions } from 'electron'
+import { app, ipcMain, session, BrowserWindow, Menu, Notification } from 'electron'
 const path = require('path');
 
 
@@ -12,7 +12,7 @@ import {  installExtension,  REDUX_DEVTOOLS, REACT_DEVELOPER_TOOLS} from "electr
 
 
 /*update */
-import { autoUpdater, UpdateInfo } from "electron-updater"
+import { autoUpdater, UpdateInfo, ProgressInfo } from "electron-updater"
 
 /*ipc */
 import ipcHandlers from './ipcHandlers'
@@ -67,7 +67,9 @@ async function createWindow() {
 
   if (!isDev) {
     win.loadFile(path.join(__dirname, '../renderer/index.html'))
-    autoUpdater.checkForUpdates();
+    // The renderer triggers the auto-update check via the
+    // `autoUpdate:check` IPC once the UpdateOrchestrator is ready, so it
+    // can sequence the modal dialogs (app update first, then database).
   }
 
   // Open the DevTools.
@@ -133,81 +135,103 @@ app.on('ready',async () => {
 });
 
 
-function isText(data: unknown): data is string {
-  return typeof data === 'string';
-};
+// ---------------------------------------------------------------------------
+// Auto-update wiring
+// All UI is React-side now. The autoUpdater events here just forward into
+// the renderer (channel: 'autoUpdate:event'), and the UpdateOrchestrator
+// component decides what dialog to show and when.
+// ---------------------------------------------------------------------------
 
-autoUpdater.on("update-available", (info: UpdateInfo) => {
-  const {releaseNotes,releaseName} = info;
-  console.log(releaseNotes);
-  console.log(releaseName);
-  if(isText(releaseNotes) && isText(releaseName)){
-    const dialogOpts:MessageBoxOptions = {
-      type: 'info',
-      buttons: ['Ok'],
-      title: 'Application Update',
-      message: process.platform === 'win32' ? releaseNotes : releaseName,
-      detail: 'A new version is being downloaded.'
+function sendAutoUpdate(payload: Record<string, unknown>): void {
+  for (const w of BrowserWindow.getAllWindows()) {
+    if (!w.isDestroyed()) {
+      w.webContents.send('autoUpdate:event', payload);
     }
-    dialog.showMessageBox(dialogOpts);
   }
-})
+}
 
-autoUpdater.on("update-downloaded", (info: UpdateInfo) => {
-  const {releaseNotes,releaseName} = info;
-  if(isText(releaseNotes) && isText(releaseName)){
-    const dialogOpts:MessageBoxOptions = {
-      type: 'info',
-      buttons: ['Restart', 'Later'],
-      title: 'Application Update',
-      message: process.platform === 'win32' ? releaseNotes : releaseName,
-      detail: 'A new version has been downloaded. Restart the application to apply the updates.'
-    };
-    dialog.showMessageBox(dialogOpts).then((returnValue) => {
-      if (returnValue.response === 0) autoUpdater.quitAndInstall()
-    })
+function summariseInfo(info: UpdateInfo): {
+  version: string;
+  releaseName: string | null;
+  releaseNotes: string | null;
+  releaseDate: string | null;
+} {
+  const notes = typeof info.releaseNotes === 'string' ? info.releaseNotes : null;
+  return {
+    version: info.version,
+    releaseName: typeof info.releaseName === 'string' ? info.releaseName : null,
+    releaseNotes: notes,
+    releaseDate: info.releaseDate ?? null,
+  };
+}
+
+autoUpdater.on('checking-for-update', () => {
+  sendAutoUpdate({ kind: 'checking' });
+});
+
+autoUpdater.on('update-available', (info: UpdateInfo) => {
+  sendAutoUpdate({ kind: 'available', info: summariseInfo(info) });
+});
+
+autoUpdater.on('download-progress', (progress: ProgressInfo) => {
+  sendAutoUpdate({
+    kind: 'progress',
+    percent: progress.percent,
+    bytesPerSecond: progress.bytesPerSecond,
+    transferred: progress.transferred,
+    total: progress.total,
+  });
+});
+
+autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
+  sendAutoUpdate({ kind: 'downloaded', info: summariseInfo(info) });
+});
+
+autoUpdater.on('update-not-available', (info: UpdateInfo) => {
+  sendAutoUpdate({ kind: 'not-available', info: summariseInfo(info) });
+});
+
+autoUpdater.on('error', (error: Error) => {
+  console.error('autoUpdater error:', error);
+  sendAutoUpdate({ kind: 'error', message: error?.message ?? String(error) });
+});
+
+// Renderer-driven control of the updater (the orchestrator triggers the
+// check after it has mounted, and asks to install when the user agrees).
+ipcMain.handle('autoUpdate:isEnabled', () => ({ enabled: !isDev }));
+
+ipcMain.handle('autoUpdate:check', () => {
+  if (isDev) {
+    // Tell the renderer immediately that there's nothing to check so it
+    // moves on to the database-update step without a timeout.
+    sendAutoUpdate({ kind: 'disabled' });
+    return { ok: true as const, started: false as const };
+  }
+  try {
+    autoUpdater.checkForUpdates();
+    return { ok: true as const, started: true as const };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    sendAutoUpdate({ kind: 'error', message });
+    return { ok: false as const, message };
   }
 });
 
-
-autoUpdater.on("update-not-available", (info: UpdateInfo) => {
-  const {releaseNotes,releaseName} = info;
-  console.log(releaseNotes);
-  console.log(releaseName);
-  // const dialogOpts = {
-  //   type: 'info',
-  //   buttons: ['Ok'],
-  //   title: 'Application No Update',
-  //   message: process.platform === 'win32' ? releaseNotes : releaseName,
-  //   detail: 'No version found.'
-  // }
-  // dialog.showMessageBox(dialogOpts, (response) => {
-
-  // });
-
-  const NOTIFICATION_TITLE :string= 'Application No Update'
-  const NOTIFICATION_BODY :string = 'No new version found'
-  showNotification();
-  function showNotification() {
-    const notificationContent : {title:string, body:string} = {title: NOTIFICATION_TITLE, body: NOTIFICATION_BODY };
-    let notification :Notification = new Notification(notificationContent);
-    notification.show();
+ipcMain.handle('autoUpdate:quitAndInstall', () => {
+  try {
+    autoUpdater.quitAndInstall();
+    return { ok: true as const };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false as const, message };
   }
-}
-);
+});
 
-autoUpdater.on("error", (error:Error) => {
-  console.log(error);
-  const dialogOpts:Electron.MessageBoxOptions = {
-    type: 'info',
-    buttons: ['Ok'],
-    title: 'Error',
-    message: '',
-    detail: 'No version found.' + error
-  }
-  dialog.showMessageBox(dialogOpts);
-}
-);
+// Silence the linter — `Notification` is still imported for future use
+// but we no longer fire the "no update" notification (the React orchestrator
+// just hides itself silently when no update is found).
+void Notification;
+void Menu;
 
 // Quit when all windows are closed.
 app.on('window-all-closed', function () {

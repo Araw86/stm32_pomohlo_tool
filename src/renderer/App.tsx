@@ -15,6 +15,7 @@ import '@fontsource/roboto/400.css';
 import '@fontsource/roboto/500.css';
 import '@fontsource/roboto/700.css';
 import AppWindows from './components/AppWindows';
+import UpdateOrchestrator from './components/UpdateOrchestrator/UpdateOrchestrator';
 
 const darkTheme = createTheme({
   palette: {
@@ -38,6 +39,10 @@ export default function App(): JSX.Element {
       <CssBaseline />
       <Provider store={store}>
         <AppWindows />
+        {/* Runs the auto-update -> database-update sequence with React
+            modal dialogs (replaces the old native dialogs). Mounted once
+            here so the dialogs sit on top of any tab. */}
+        <UpdateOrchestrator />
       </Provider>
     </ThemeProvider>
   );

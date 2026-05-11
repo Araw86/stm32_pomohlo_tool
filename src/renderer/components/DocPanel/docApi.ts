@@ -98,11 +98,77 @@ export interface AppInfo {
   node: string;
 }
 
+/** Streamed via the `onAutoUpdateEvent` subscription. The first event after
+ *  `autoUpdateCheck()` is always one of: 'disabled' (dev mode), 'checking'
+ *  (started), 'error' (failed before anything else). 'available' will be
+ *  followed by zero or more 'progress' events and then 'downloaded'. */
+export type AutoUpdateEvent =
+  | { kind: 'disabled' }
+  | { kind: 'checking' }
+  | {
+      kind: 'available';
+      info: {
+        version: string;
+        releaseName: string | null;
+        releaseNotes: string | null;
+        releaseDate: string | null;
+      };
+    }
+  | {
+      kind: 'progress';
+      percent: number;
+      bytesPerSecond: number;
+      transferred: number;
+      total: number;
+    }
+  | {
+      kind: 'downloaded';
+      info: {
+        version: string;
+        releaseName: string | null;
+        releaseNotes: string | null;
+        releaseDate: string | null;
+      };
+    }
+  | {
+      kind: 'not-available';
+      info: { version: string; releaseDate: string | null };
+    }
+  | { kind: 'error'; message: string };
+
+export type DatabaseStartupCheckResult =
+  | { kind: 'disabled' }
+  | {
+      kind: 'up-to-date';
+      localTag: string | null;
+      localDbVersion: number | null;
+    }
+  | {
+      kind: 'update-available';
+      remote: RemoteDatabaseVersion;
+      localTag: string | null;
+      localDbVersion: number | null;
+      sourceId: string;
+      sourceDisplayName: string;
+    }
+  | { kind: 'error'; message: string };
+
 interface IpcHandlers {
   appInfo: () => Promise<AppInfo>;
   openExternal: (
     url: string,
   ) => Promise<{ ok: true } | { ok: false; message: string }>;
+  autoUpdateIsEnabled: () => Promise<{ enabled: boolean }>;
+  autoUpdateCheck: () => Promise<
+    | { ok: true; started: boolean }
+    | { ok: false; message: string }
+  >;
+  autoUpdateQuitAndInstall: () => Promise<
+    { ok: true } | { ok: false; message: string }
+  >;
+  onAutoUpdateEvent: (cb: (data: AutoUpdateEvent) => void) => () => void;
+  databaseStartupCheck: () => Promise<DatabaseStartupCheckResult>;
+  databaseDisableStartupCheck: () => Promise<{ ok: true }>;
   loadDatabase: () => Promise<{ status: 'ok' } | { status: 'error'; message: string }>;
   pickRepoPath: () => Promise<{ repoPath: string | null }>;
   setVersionCheckOnOpen: (enabled: boolean) => Promise<{ ok: true }>;

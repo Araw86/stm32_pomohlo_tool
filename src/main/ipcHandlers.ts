@@ -59,104 +59,80 @@ import {
 } from '../shared/redux/slices/customFamiliesSlice';
 import type { CustomFamilyPayload } from '../shared/types/customFamily';
 
-let startupCheckAttempted = false;
-
 function getActiveWindow(): BrowserWindow | null {
   return BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null;
 }
 
-async function maybeRunStartupDatabaseCheck(): Promise<void> {
-  if (startupCheckAttempted) return;
-  startupCheckAttempted = true;
+/** Result returned by `database:startupCheck`. The renderer decides what
+ *  modal to show based on the discriminated union.
+ *  - `disabled`: the user previously dismissed the prompt with "don't ask".
+ *  - `up-to-date`: we have the latest release already.
+ *  - `update-available`: there's a newer release than what's local.
+ *  - `error`: network or parse failure — surface a soft warning, never block. */
+type StartupDatabaseCheckResult =
+  | { kind: 'disabled' }
+  | {
+      kind: 'up-to-date';
+      localTag: string | null;
+      localDbVersion: number | null;
+    }
+  | {
+      kind: 'update-available';
+      remote: {
+        databaseVersion: number;
+        databaseVersionCreatedAt: string;
+        scrapedAt: string;
+        releaseTag: string;
+        releaseName: string;
+        releasePublishedAt: string;
+        releaseHtmlUrl: string;
+        fetchedAt: string;
+      };
+      localTag: string | null;
+      localDbVersion: number | null;
+      sourceId: string;
+      sourceDisplayName: string;
+    }
+  | { kind: 'error'; message: string };
 
+async function computeStartupDatabaseCheck(): Promise<StartupDatabaseCheckResult> {
   const config = loadConfig();
-  if (config.checkDatabaseOnStartup === false) return;
+  if (config.checkDatabaseOnStartup === false) return { kind: 'disabled' };
 
   const source = MAIN_SOURCE;
   let remote;
   try {
     remote = await checkLatest(source);
   } catch (err) {
-    // Network errors etc. — don't bother the user on startup.
-    console.warn('Startup database check failed:', err);
-    return;
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn('Startup database check failed:', message);
+    return { kind: 'error', message };
   }
 
-  // Read the on-disk release.json directly — it's the single source of truth
-  // about which release we have locally. Falling back to redux state would
-  // miss the tag if `setDatabase` was dispatched before this function ran
-  // with a slightly stale meta.
+  // Read release.json directly so we don't depend on redux-load timing.
   const localInfo = readReleaseInfo(source.id);
-  const localTag = localInfo?.releaseTag
-    ?? store.getState().databaseSlice.meta?.releaseTag
-    ?? null;
-  const localDbVersion = store.getState().databaseSlice.meta?.databaseVersion ?? null;
+  const localTag =
+    localInfo?.releaseTag ?? store.getState().databaseSlice.meta?.releaseTag ?? null;
+  const localDbVersion =
+    store.getState().databaseSlice.meta?.databaseVersion ?? null;
 
-  // Up-to-date if either:
-  //   * the release tags match, OR
-  //   * the local databaseVersion is already >= the remote one (covers the
-  //     case where release.json failed to write but database.json did).
-  if (localTag && localTag === remote.releaseTag) {
-    return;
-  }
-  if (
+  const tagsMatch = !!localTag && localTag === remote.releaseTag;
+  const versionGreaterOrEqual =
     localDbVersion !== null &&
     typeof remote.databaseVersion === 'number' &&
-    localDbVersion >= remote.databaseVersion
-  ) {
-    return;
+    localDbVersion >= remote.databaseVersion;
+  if (tagsMatch || versionGreaterOrEqual) {
+    return { kind: 'up-to-date', localTag, localDbVersion };
   }
 
-  const win = getActiveWindow();
-  if (!win) return;
-
-  const detail = (() => {
-    const lines: string[] = [];
-    if (localTag) lines.push(`Local: ${localTag}`);
-    else if (localDbVersion !== null)
-      lines.push(`Local: databaseVersion v${localDbVersion} (no release tag)`);
-    else lines.push('Local: bundled (no release downloaded yet)');
-    lines.push(
-      `Latest: ${remote.releaseTag} (published ${remote.releasePublishedAt.slice(0, 10)})`,
-    );
-    lines.push(`databaseVersion: v${remote.databaseVersion}`);
-    return lines.join('\n');
-  })();
-
-  const result = await dialog.showMessageBox(win, {
-    type: 'info',
-    title: 'Database update available',
-    message: `A new release (${remote.releaseTag}) is available for ${source.displayName}.`,
-    detail,
-    buttons: ['Download now', 'Later', "Don't ask again"],
-    defaultId: 0,
-    cancelId: 1,
-  });
-
-  if (result.response === 2) {
-    saveConfig({ checkDatabaseOnStartup: false });
-    store.dispatch(setCheckDatabaseOnStartupAction(false));
-    return;
-  }
-  if (result.response !== 0) return;
-
-  try {
-    await downloadSource(source);
-    const payload = loadDatabase(source.id);
-    store.dispatch(setDatabase(payload));
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error('Auto download failed:', err);
-    if (win && !win.isDestroyed()) {
-      await dialog.showMessageBox(win, {
-        type: 'error',
-        title: 'Database download failed',
-        message: `Could not download release ${remote.releaseTag}.`,
-        detail: message,
-        buttons: ['OK'],
-      });
-    }
-  }
+  return {
+    kind: 'update-available',
+    remote,
+    localTag,
+    localDbVersion,
+    sourceId: source.id,
+    sourceDisplayName: source.displayName,
+  };
 }
 
 /** Read every custom family folder and push them into the renderer-visible
@@ -218,8 +194,6 @@ function fIpcHandlers(): void {
     try {
       const payload = loadDatabase();
       store.dispatch(setDatabase(payload));
-      // Fire-and-forget the startup check on the very first successful load.
-      void maybeRunStartupDatabaseCheck();
       return { status: 'ok' as const };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -227,6 +201,18 @@ function fIpcHandlers(): void {
       store.dispatch(setDatabaseError(message));
       return { status: 'error' as const, message };
     }
+  });
+
+  // Renderer drives the startup-update sequencing. It calls this after the
+  // app-update phase finishes so the two dialogs never race.
+  ipcMain.handle('database:startupCheck', async () => {
+    return computeStartupDatabaseCheck();
+  });
+
+  ipcMain.handle('database:disableStartupCheck', () => {
+    saveConfig({ checkDatabaseOnStartup: false });
+    store.dispatch(setCheckDatabaseOnStartupAction(false));
+    return { ok: true as const };
   });
 
   ipcMain.handle('config:pickRepoPath', async () => {

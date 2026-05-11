@@ -29,6 +29,21 @@ contextBridge.exposeInMainWorld('versions', {
 contextBridge.exposeInMainWorld('ipc_handlers', {
   appInfo: () => ipcRenderer.invoke('app:info'),
   openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', { url }),
+  // Auto-updater control (renderer drives sequencing).
+  autoUpdateIsEnabled: () => ipcRenderer.invoke('autoUpdate:isEnabled'),
+  autoUpdateCheck: () => ipcRenderer.invoke('autoUpdate:check'),
+  autoUpdateQuitAndInstall: () => ipcRenderer.invoke('autoUpdate:quitAndInstall'),
+  onAutoUpdateEvent: (cb: (data: any) => void) => {
+    const listener = (_event: unknown, data: any) => cb(data);
+    ipcRenderer.on('autoUpdate:event', listener);
+    return () => {
+      ipcRenderer.removeListener('autoUpdate:event', listener);
+    };
+  },
+  // Database startup check (renderer triggers, decides what dialog to show).
+  databaseStartupCheck: () => ipcRenderer.invoke('database:startupCheck'),
+  databaseDisableStartupCheck: () =>
+    ipcRenderer.invoke('database:disableStartupCheck'),
   loadDatabase: () => ipcRenderer.invoke('database:load'),
   pickRepoPath: () => ipcRenderer.invoke('config:pickRepoPath'),
   setVersionCheckOnOpen: (enabled: boolean) =>

@@ -4,6 +4,7 @@ import {
   Box,
   Button,
   Chip,
+  CircularProgress,
   LinearProgress,
   Paper,
   Stack,
@@ -13,6 +14,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import DownloadingIcon from '@mui/icons-material/Downloading';
 import UpdateIcon from '@mui/icons-material/Update';
 import StopIcon from '@mui/icons-material/Stop';
+import FactCheckIcon from '@mui/icons-material/FactCheck';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../store/storeRenderer';
 import {
@@ -137,7 +139,15 @@ function DownloadPanel(): JSX.Element {
   const [progress, setProgress] = useState<DownloadProgress | null>(null);
   const [summary, setSummary] = useState<DownloadSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // On-disk preview is now opt-in — the check walks the repo dir and stats
+  // every sidecar, which lagged the UI when run automatically on every tab
+  // open. The user kicks it off with the "Check files on disk" button.
   const [counts, setCounts] = useState<DownloadCounts | null>(null);
+  const [checking, setChecking] = useState(false);
+  // `stale` flips on as soon as something that invalidates the counts
+  // happens (download finishes, repo changes). The user can still see the
+  // last known numbers but the UI nudges them to re-check.
+  const [stale, setStale] = useState(false);
 
   // Keep the most recent unsubscribe so we can clean up.
   const unsubscribeRef = useRef<(() => void) | null>(null);
@@ -151,27 +161,29 @@ function DownloadPanel(): JSX.Element {
     };
   }, []);
 
-  // Recompute counts whenever the panel mounts, the repo changes, the
-  // doc list changes, or a download finishes (so the chips reflect the
-  // post-run state without a manual refresh).
+  // Anything that would change what's on disk → mark the cached counts
+  // stale. Cheap: just flips a flag, no IPC.
   useEffect(() => {
-    let cancelled = false;
-    if (documents.length === 0) {
-      setCounts(null);
-      return undefined;
-    }
-    (async () => {
-      try {
-        const res = await ipc()?.previewDownloads();
-        if (!cancelled && res) setCounts(res.counts);
-      } catch {
-        if (!cancelled) setCounts(null);
+    if (counts !== null) setStale(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repoPath, summary]);
+
+  const handleCheckOnDisk = async () => {
+    if (checking) return;
+    setChecking(true);
+    setError(null);
+    try {
+      const res = await ipc()?.previewDownloads();
+      if (res) {
+        setCounts(res.counts);
+        setStale(false);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [repoPath, documents.length, summary]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setChecking(false);
+    }
+  };
 
   const handleStart = async (mode: DownloadMode) => {
     if (running) return;
@@ -232,6 +244,33 @@ function DownloadPanel(): JSX.Element {
           </Alert>
         )}
 
+        <Stack
+          direction="row"
+          alignItems="center"
+          spacing={2}
+          sx={{ mb: 2 }}
+        >
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={
+              checking ? <CircularProgress size={14} /> : <FactCheckIcon />
+            }
+            onClick={handleCheckOnDisk}
+            disabled={checking || !repoPath || documents.length === 0}
+            sx={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+          >
+            {checking ? 'Checking…' : 'Check files on disk'}
+          </Button>
+          <Typography variant="caption" color="text.secondary">
+            {counts === null
+              ? 'Click to count missing / new files. (Scans every sidecar in the repo — may take a few seconds.)'
+              : stale
+                ? 'Counts may be out of date — re-check to refresh.'
+                : `Last check: ${counts.onDisk} on disk, ${counts.missing} missing, ${counts.outdated} outdated (of ${counts.total} total).`}
+          </Typography>
+        </Stack>
+
         <Stack spacing={2}>
           {MODES.map((m) => {
             const countLabel = countLabelFor(m.id, counts);
@@ -250,10 +289,10 @@ function DownloadPanel(): JSX.Element {
                 {countLabel && (
                   <Chip
                     size="small"
-                    label={countLabel.text}
-                    color={countLabel.color}
+                    label={stale ? `${countLabel.text} (stale)` : countLabel.text}
+                    color={stale ? 'default' : countLabel.color}
                     variant={countLabel.variant}
-                    sx={{ flexShrink: 0 }}
+                    sx={{ flexShrink: 0, opacity: stale ? 0.7 : 1 }}
                   />
                 )}
                 <Button
